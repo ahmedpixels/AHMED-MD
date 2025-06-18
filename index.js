@@ -1,48 +1,223 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
-const P = require('pino');
-const fs = require('fs');
-require('dotenv').config();
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  DisconnectReason,
+  jidNormalizedUser,
+  getContentType,
+  fetchLatestBaileysVersion,
+  Browsers
+} = require('@whiskeysockets/baileys')
 
-const owner = process.env.OWNER_NAME || 'AHMED';
-const ownerNum = process.env.OWNER_NUMBER || '923216479192';
-const channel = process.env.CHANNEL;
+const {
+  getBuffer,
+  getGroupAdmins,
+  getRandom,
+  h2k,
+  isUrl,
+  Json,
+  runtime,
+  sleep,
+  fetchJson
+} = require('./lib/functions')
 
-async function startBot() {
-  const { state, saveCreds } = await useMultiFileAuthState('./auth');
+const fs = require('fs')
+const P = require('pino')
+const config = require('./config')
+const qrcode = require('qrcode-terminal')
+const util = require('util')
+const { sms, downloadMediaMessage } = require('./lib/msg')
+const axios = require('axios')
+const { File } = require('megajs')
+const prefix = ''
 
-  const sock = makeWASocket({
-    logger: P({ level: 'silent' }),
-    printQRInTerminal: true,
-    auth: state,
-    browser: ['AHMED-MD', 'Safari', '1.0.0']
-  });
+const ownerNumber = ['923216479192'] // AHMED's number
 
-  sock.ev.on('creds.update', saveCreds);
-
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect } = update;
-    if (connection === 'close') {
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      console.log('Bot disconnected. Reconnecting:', shouldReconnect);
-      if (shouldReconnect) startBot();
-    } else if (connection === 'open') {
-      console.log(`✅ ${owner}'s Bot Connected to WhatsApp`);
-    }
-  });
-
-  sock.ev.on('messages.upsert', async ({ messages }) => {
-    const msg = messages[0];
-    if (!msg.message || msg.key.fromMe) return;
-
-    const sender = msg.key.remoteJid;
-    const textMsg = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
-
-    if (textMsg.toLowerCase() === 'hi') {
-      await sock.sendMessage(sender, {
-        text: `👋 Hello from ${owner}'s Bot!\n\n🔗 Channel:\n${channel}`
-      });
-    }
-  });
+//===================SESSION-AUTH============================
+if (!fs.existsSync(__dirname + '/auth_info_baileys/creds.json')) {
+  if (!config.SESSION_ID) return console.log('Please add your session to SESSION_ID env !!')
+  const sessdata = config.SESSION_ID
+  const filer = File.fromURL(`https://mega.nz/file/${sessdata}`)
+  filer.download((err, data) => {
+    if (err) throw err
+    fs.writeFile(__dirname + '/auth_info_baileys/creds.json', data, () => {
+      console.log("Session downloaded ✅")
+    })
+  })
 }
 
-startBot();
+const express = require("express");
+const app = express();
+const port = process.env.PORT || 8000;
+
+//=============================================
+
+async function connectToWA() {
+  console.log("Connecting AHMED-MD 🧬...");
+  const { state, saveCreds } = await useMultiFileAuthState(__dirname + '/auth_info_baileys/')
+  var { version } = await fetchLatestBaileysVersion()
+
+  const conn = makeWASocket({
+    logger: P({ level: 'silent' }),
+    printQRInTerminal: false,
+    browser: Browsers.macOS("Firefox"),
+    syncFullHistory: true,
+    auth: state,
+    version
+  })
+
+  conn.ev.on('connection.update', (update) => {
+    const { connection, lastDisconnect } = update
+    if (connection === 'close') {
+      if (lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut) {
+        connectToWA()
+      }
+    } else if (connection === 'open') {
+      console.log('😼 Installing AHMED-MD...')
+      const path = require('path');
+      fs.readdirSync("./plugins/").forEach((plugin) => {
+        if (path.extname(plugin).toLowerCase() == ".js") {
+          require("./plugins/" + plugin);
+        }
+      });
+      console.log('Plugins installed successfully ✅')
+      console.log('AHMED-MD connected to WhatsApp ✅')
+
+      let up = `AHMED-MD connected successfully ✅\n\nPREFIX: ${prefix}`;
+
+      conn.sendMessage(ownerNumber[0] + "@s.whatsapp.net", {
+        image: { url: `https://i.postimg.cc/rFr5MTtd/Gemini-Generated-Image-13yzzy13yzzy13yz.png` },
+        caption: up
+      })
+    }
+  })
+
+  conn.ev.on('creds.update', saveCreds)
+
+  conn.ev.on('messages.upsert', async (mek) => {
+    mek = mek.messages[0]
+    if (!mek.message) return
+    mek.message = (getContentType(mek.message) === 'ephemeralMessage')
+      ? mek.message.ephemeralMessage.message
+      : mek.message
+
+    if (mek.key && mek.key.remoteJid === 'status@broadcast') return
+
+    const m = sms(conn, mek)
+    const type = getContentType(mek.message)
+    const content = JSON.stringify(mek.message)
+    const from = mek.key.remoteJid
+    const quoted = type == 'extendedTextMessage' && mek.message.extendedTextMessage.contextInfo != null
+      ? mek.message.extendedTextMessage.contextInfo.quotedMessage || [] : []
+    const body = (type === 'conversation') ? mek.message.conversation
+      : (type === 'extendedTextMessage') ? mek.message.extendedTextMessage.text
+        : (type == 'imageMessage') && mek.message.imageMessage.caption ? mek.message.imageMessage.caption
+          : (type == 'videoMessage') && mek.message.videoMessage.caption ? mek.message.videoMessage.caption : ''
+    const isCmd = body.startsWith(prefix)
+    const command = isCmd ? body.slice(prefix.length).trim().split(' ').shift().toLowerCase() : ''
+    const args = body.trim().split(/ +/).slice(1)
+    const q = args.join(' ')
+    const isGroup = from.endsWith('@g.us')
+    const sender = mek.key.fromMe ? (conn.user.id.split(':')[0] + '@s.whatsapp.net' || conn.user.id) : (mek.key.participant || mek.key.remoteJid)
+    const senderNumber = sender.split('@')[0]
+    const botNumber = conn.user.id.split(':')[0]
+    const pushname = mek.pushName || 'Sin Nombre'
+    const isMe = botNumber.includes(senderNumber)
+    const isOwner = ownerNumber.includes(senderNumber) || isMe
+    const botNumber2 = await jidNormalizedUser(conn.user.id);
+    const groupMetadata = isGroup ? await conn.groupMetadata(from).catch(e => { }) : ''
+    const groupName = isGroup ? groupMetadata.subject : ''
+    const participants = isGroup ? await groupMetadata.participants : ''
+    const groupAdmins = isGroup ? await getGroupAdmins(participants) : ''
+    const isBotAdmins = isGroup ? groupAdmins.includes(botNumber2) : false
+    const isAdmins = isGroup ? groupAdmins.includes(sender) : false
+    const reply = (teks) => conn.sendMessage(from, { text: teks }, { quoted: mek })
+
+    conn.sendFileUrl = async (jid, url, caption, quoted, options = {}) => {
+      let mime = '';
+      let res = await axios.head(url)
+      mime = res.headers['content-type']
+      if (mime.split("/")[1] === "gif") {
+        return conn.sendMessage(jid, {
+          video: await getBuffer(url),
+          caption: caption,
+          gifPlayback: true,
+          ...options
+        }, { quoted: quoted, ...options })
+      }
+      let type = mime.split("/")[0] + "Message"
+      if (mime === "application/pdf") {
+        return conn.sendMessage(jid, {
+          document: await getBuffer(url),
+          mimetype: 'application/pdf',
+          caption: caption,
+          ...options
+        }, { quoted: quoted, ...options })
+      }
+      if (mime.split("/")[0] === "image") {
+        return conn.sendMessage(jid, {
+          image: await getBuffer(url),
+          caption: caption,
+          ...options
+        }, { quoted: quoted, ...options })
+      }
+      if (mime.split("/")[0] === "video") {
+        return conn.sendMessage(jid, {
+          video: await getBuffer(url),
+          caption: caption,
+          mimetype: 'video/mp4',
+          ...options
+        }, { quoted: quoted, ...options })
+      }
+      if (mime.split("/")[0] === "audio") {
+        return conn.sendMessage(jid, {
+          audio: await getBuffer(url),
+          caption: caption,
+          mimetype: 'audio/mpeg',
+          ...options
+        }, { quoted: quoted, ...options })
+      }
+    }
+
+    const events = require('./command')
+    const cmdName = isCmd ? body.slice(1).trim().split(" ")[0].toLowerCase() : false
+    if (isCmd) {
+      const cmd = events.commands.find((cmd) => cmd.pattern === (cmdName)) || events.commands.find((cmd) => cmd.alias && cmd.alias.includes(cmdName))
+      if (cmd) {
+        if (cmd.react) conn.sendMessage(from, { react: { text: cmd.react, key: mek.key } })
+        try {
+          cmd.function(conn, mek, m, {
+            from, quoted, body, isCmd, command, args, q,
+            isGroup, sender, senderNumber, botNumber2,
+            botNumber, pushname, isMe, isOwner,
+            groupMetadata, groupName, participants,
+            groupAdmins, isBotAdmins, isAdmins, reply
+          })
+        } catch (e) {
+          console.error("[PLUGIN ERROR] " + e);
+        }
+      }
+    }
+
+    events.commands.map(async (command) => {
+      if (body && command.on === "body") {
+        command.function(conn, mek, m, {
+          from, quoted, body, isCmd, command, args, q,
+          isGroup, sender, senderNumber, botNumber2,
+          botNumber, pushname, isMe, isOwner,
+          groupMetadata, groupName, participants,
+          groupAdmins, isBotAdmins, isAdmins, reply
+        })
+      }
+    });
+  })
+}
+
+app.get("/", (req, res) => {
+  res.send("AHMED-MD bot is running ✅");
+});
+
+app.listen(port, () => console.log(`Server listening at http://localhost:${port}`));
+
+setTimeout(() => {
+  connectToWA()
+}, 4000);
