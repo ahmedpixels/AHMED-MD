@@ -1,5 +1,5 @@
 const config = require('../config');
-const { MessageType, Mimetype } = require('@whiskeysockets/baileys');
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
 module.exports = async (sock, m) => {
   try {
