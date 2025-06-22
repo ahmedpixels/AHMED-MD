@@ -1,23 +1,15 @@
+const config = require('../config');
+const { MessageType, Mimetype } = require('@whiskeysockets/baileys');
 
-const config = require('../config')
-const {cmd , commands} = require('../command')
-
-cmd({
-    pattern: "alive",
-    desc: "Check bot online or no.",
-    category: "main",
-    filename: __filename
-},
-async(conn, mek, m,{from, quoted, body, isCmd, command, args, q, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply}) => {
-try{
-return await conn.sendMessage(from,{image: {url: config.ALIVE_IMG},caption: config.ALIVE_MSG},{quoted: mek})
-}catch(e){
-console.log(e)
-reply(`${e}`)
-}
-})
-
-
-
-alive.js
-Displaying alive.js.
+module.exports = async (sock, m) => {
+  try {
+    const buffer = await fetch(config.aliveImg).then(res => res.arrayBuffer());
+    await sock.sendMessage(m.key.remoteJid, {
+      image: Buffer.from(buffer),
+      caption: config.aliveMsg,
+    }, { quoted: m });
+  } catch (err) {
+    console.error('❌ Error in .alive command:', err);
+    await sock.sendMessage(m.key.remoteJid, { text: config.aliveMsg }, { quoted: m });
+  }
+};
