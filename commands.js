@@ -1,20 +1,18 @@
-var commands = [];
+const fs = require('fs');
+global.commands = {};
 
-function cmd(info, func) {
-    var data = info;
-    data.function = func;
-    if (!data.dontAddCommandList) data.dontAddCommandList = false;
-    if (!info.desc) info.desc = '';
-    if (!data.fromMe) data.fromMe = false;
-    if (!info.category) data.category = 'misc';
-    if(!info.filename) data.filename = "Not Provided";
-    commands.push(data);
-    return data;
-}
-module.exports = {
-    cmd,
-    AddCommand:cmd,
-    Function:cmd,
-    Module:cmd,
-    commands,
+module.exports = (sock) => {
+  const pluginFolder = './plugins';
+  fs.readdirSync(pluginFolder).forEach(file => {
+    if (file.endsWith('.js')) {
+      const commandName = file.replace('.js', '');
+      try {
+        const command = require(`${pluginFolder}/${file}`);
+        global.commands[commandName] = command;
+        console.log(`✅ Loaded command: ${commandName}`);
+      } catch (err) {
+        console.error(`❌ Failed to load ${file}:`, err);
+      }
+    }
+  });
 };
