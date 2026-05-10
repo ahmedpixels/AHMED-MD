@@ -8,6 +8,8 @@ const config = require('./config')
 const { loadPlugins } = require('./lib/pluginHandler')
 const MessageHandler = require('./lib/messageHandler')
 
+const unzipper = require('unzipper')
+
 async function getSession() {
     if (!fs.existsSync('./session')) {
         fs.mkdirSync('./session')
@@ -16,18 +18,21 @@ async function getSession() {
     if (!fs.existsSync('./session/creds.json') && config.SESSION_ID) {
         console.log('Downloading Session from AHMED-MD Server...')
         try {
-            // Fetch session JSON from your API endpoint
-            const sessionId = config.SESSION_ID.replace('AHMED-MD_', '')
-            const response = await axios.get(`https://ahmedpixels.com/api/session?id=${sessionId}`)
+            const response = await axios({
+                url: `https://pair-j2ft.onrender.com/api/session/${config.SESSION_ID}`,
+                method: 'GET',
+                responseType: 'stream'
+            });
             
-            if (response.data && response.data.creds) {
-                fs.writeFileSync('./session/creds.json', JSON.stringify(response.data.creds))
-                console.log('Session Downloaded Successfully!')
-            } else {
-                console.log('Invalid Session Data.')
-            }
+            await new Promise((resolve, reject) => {
+                response.data.pipe(unzipper.Extract({ path: './session' }))
+                .on('close', resolve)
+                .on('error', reject)
+            });
+            
+            console.log('✅ Session Downloaded and Extracted Successfully!')
         } catch (error) {
-            console.log('Failed to download session. Make sure your SESSION_ID is correct.', error.message)
+            console.log('❌ Failed to download session. Make sure your SESSION_ID is correct.', error.message)
         }
     }
 }
