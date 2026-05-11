@@ -70,6 +70,23 @@ async function startBot() {
             await sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
                 text: `🚀 *${config.BOT_NAME} IS ONLINE* 🚀\n\n_Connected and ready to rock!_`
             })
+
+            // Auto Check for Updates
+            try {
+                const { exec } = require('child_process')
+                exec('git fetch', (err) => {
+                    if (!err) {
+                        exec('git status -uno', async (err2, stdout) => {
+                            if (!err2 && stdout.includes('Your branch is behind')) {
+                                const p = config.PREFIX === 'null' ? '' : config.PREFIX;
+                                await sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
+                                    text: `🚨 *UPDATE AVAILABLE* 🚨\n\nNew features have been added to the bot on GitHub!\n\nPlease type *${p}update now* to apply them.`
+                                })
+                            }
+                        })
+                    }
+                })
+            } catch (e) {}
         }
     })
 
