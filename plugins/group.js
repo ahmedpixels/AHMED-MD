@@ -1,14 +1,21 @@
 const { addCommand } = require('../lib/pluginHandler')
 
 async function isAdmin(sock, chat, sender) {
-    const groupMetadata = await sock.groupMetadata(chat)
-    const participants = groupMetadata.participants
-    const admins = participants.filter(p => p.admin !== null).map(p => p.id)
-    return admins.includes(sender)
+    try {
+        const groupMetadata = await sock.groupMetadata(chat)
+        const participants = groupMetadata.participants
+        // Extract base number from admins
+        const admins = participants.filter(p => p.admin !== null).map(p => p.id.split('@')[0].split(':')[0])
+        // Extract base number from sender
+        const senderBase = sender.split('@')[0].split(':')[0]
+        return admins.includes(senderBase)
+    } catch (e) {
+        return false;
+    }
 }
 
 async function isBotAdmin(sock, chat) {
-    const botNumber = sock.user.id.split(':')[0].split('@')[0] + '@s.whatsapp.net'
+    const botNumber = sock.user.id;
     return await isAdmin(sock, chat, botNumber)
 }
 
