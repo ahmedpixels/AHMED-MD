@@ -8,7 +8,7 @@ async function isAdmin(sock, chat, sender) {
 }
 
 async function isBotAdmin(sock, chat) {
-    const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net'
+    const botNumber = sock.user.id.split(':')[0].split('@')[0] + '@s.whatsapp.net'
     return await isAdmin(sock, chat, botNumber)
 }
 
