@@ -34,7 +34,8 @@ addCommand({
     desc: 'Block a user (Owner only)',
     function: async (sock, message) => {
         // Only owner can use this
-        if (message.sender !== config.OWNER_NUMBER + '@s.whatsapp.net') {
+        const senderNumber = message.sender.split('@')[0]
+        if (senderNumber !== config.OWNER_NUMBER && !message.msg.key.fromMe) {
             return await message.reply('❌ This command is only for the bot owner.')
         }
 
@@ -50,7 +51,8 @@ addCommand({
     pattern: 'unblock',
     desc: 'Unblock a user (Owner only)',
     function: async (sock, message) => {
-        if (message.sender !== config.OWNER_NUMBER + '@s.whatsapp.net') {
+        const senderNumber = message.sender.split('@')[0]
+        if (senderNumber !== config.OWNER_NUMBER && !message.msg.key.fromMe) {
             return await message.reply('❌ This command is only for the bot owner.')
         }
 

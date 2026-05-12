@@ -18,12 +18,12 @@ function updateEnv(key, value) {
 }
 
 addCommand({
-    pattern: 'addsudo',
+    pattern: 'setsudo',
     desc: 'Add a sudo user',
     function: async (sock, message) => {
-        // Only OWNER can add SUDO
+        // Only OWNER or the bot's own number can add SUDO
         const senderNumber = message.sender.split('@')[0]
-        if (senderNumber !== config.OWNER_NUMBER) {
+        if (senderNumber !== config.OWNER_NUMBER && !message.msg.key.fromMe) {
             return await message.reply('❌ This command is strictly for the OWNER only.')
         }
 
@@ -49,7 +49,7 @@ addCommand({
     desc: 'Remove a sudo user',
     function: async (sock, message) => {
         const senderNumber = message.sender.split('@')[0]
-        if (senderNumber !== config.OWNER_NUMBER) {
+        if (senderNumber !== config.OWNER_NUMBER && !message.msg.key.fromMe) {
             return await message.reply('❌ This command is strictly for the OWNER only.')
         }
 
@@ -73,7 +73,7 @@ addCommand({
     desc: 'Toggle public/private mode',
     function: async (sock, message) => {
         const senderNumber = message.sender.split('@')[0]
-        if (senderNumber !== config.OWNER_NUMBER && !(config.SUDO.split(',').includes(senderNumber))) {
+        if (senderNumber !== config.OWNER_NUMBER && !message.msg.key.fromMe && !(config.SUDO.split(',').includes(senderNumber))) {
             return await message.reply('❌ You are not authorized to change the bot mode.')
         }
 
