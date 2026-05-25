@@ -214,7 +214,7 @@ function formatDuration(sec) {
 async function searchTop(query) {
     const { stdout } = await execFileAsync(YTDLP, [
         `ytsearch1:${query}`, '--dump-json',
-        '--no-playlist', '--flat-playlist', '--no-warnings'
+        '--no-playlist', '--no-warnings'
     ], { timeout: 20000 })
     const lines = stdout.trim().split('\n').filter(Boolean)
     if (!lines.length) throw new Error('No results found')
@@ -228,7 +228,9 @@ bot({ pattern: 'play', desc: 'Search & play song (MP3)', type: 'download' }, asy
     const out = `./play_${Date.now()}.mp3`
     try {
         const top = await searchTop(args)
-        const ytUrl = `https://www.youtube.com/watch?v=${top.id}`
+        const videoId = top.id || top.url?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/)?.[1] || top.webpage_url?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/)?.[1]
+        if (!videoId) return msg.reply('❌ *Could not resolve video ID!*')
+        const ytUrl = `https://www.youtube.com/watch?v=${videoId}`
         const title = (top.title || args).slice(0, 80)
         const dur = top.duration || 0
         if (dur > 600) return msg.reply('❌ *Song too long! Max 10 minutes.*')
@@ -282,7 +284,9 @@ bot({ pattern: 'song', desc: 'Search & download song (MP3)', type: 'download' },
     const out = `./song_${Date.now()}.mp3`
     try {
         const top = await searchTop(args)
-        const ytUrl = `https://www.youtube.com/watch?v=${top.id}`
+        const videoId = top.id || top.url?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/)?.[1] || top.webpage_url?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/)?.[1]
+        if (!videoId) return msg.reply('❌ *Could not resolve video ID!*')
+        const ytUrl = `https://www.youtube.com/watch?v=${videoId}`
         const title = (top.title || args).slice(0, 80)
         const dur = top.duration || 0
         if (dur > 600) return msg.reply('❌ *Song too long! Max 10 minutes.*')
@@ -337,7 +341,9 @@ bot({ pattern: 'video', desc: 'Search & download video (MP4)', type: 'download' 
     const out = `./video_${Date.now()}.mp4`
     try {
         const top   = await searchTop(args)
-        const ytUrl = `https://www.youtube.com/watch?v=${top.id}`
+        const videoId = top.id || top.url?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/)?.[1] || top.webpage_url?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/)?.[1]
+        if (!videoId) return msg.reply('❌ *Could not resolve video ID!*')
+        const ytUrl = `https://www.youtube.com/watch?v=${videoId}`
         const title = (top.title || args).slice(0, 60)
         const dur   = top.duration || 0
 
