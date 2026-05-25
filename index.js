@@ -299,14 +299,19 @@ async function startBot() {
                 }
             }
 
-            // Auto Update Checker on Startup
+            // Auto Update Checker (runs on startup and every 6 hours)
             if (config.OWNER_NUMBER) {
-                setTimeout(async () => {
+                let lastNotifiedCommits = ''
+                const checkUpdates = async () => {
                     try {
                         const { exec } = await import('child_process')
                         exec('git fetch && git log HEAD..origin/main --oneline', (err, stdout, stderr) => {
                             if (!err && stdout.trim()) {
-                                const commits = stdout.trim().split('\n')
+                                const commitsStr = stdout.trim()
+                                if (commitsStr === lastNotifiedCommits) return
+                                lastNotifiedCommits = commitsStr
+
+                                const commits = commitsStr.split('\n')
                                 const updMsg = `🔔 *AHMED-MD NEW UPDATE AVAILABLE!* 🔔\n\n` +
                                                 `We have pushed new updates to the repository. Please update your bot to avoid any issues.\n\n` +
                                                 `📝 *New Commits:*\n` +
@@ -319,7 +324,13 @@ async function startBot() {
                             }
                         })
                     } catch {}
-                }, 15000)
+                }
+
+                // Startup check (15 seconds after boot)
+                setTimeout(checkUpdates, 15000)
+
+                // Periodic check (every 6 hours)
+                setInterval(checkUpdates, 6 * 60 * 60 * 1000)
             }
         }
     })
