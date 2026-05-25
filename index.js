@@ -22,6 +22,19 @@ import { updateLidCache } from './lib/lidCache.js'
 // ── Session Downloader ─────────────────────────────────────
 async function getSession() {
     fs.ensureDirSync('./session')
+    
+    // Check if the Session ID has changed
+    const idPath = './session/session_id.txt'
+    if (fs.existsSync(idPath)) {
+        try {
+            const savedId = fs.readFileSync(idPath, 'utf8').trim()
+            if (savedId !== config.SESSION_ID) {
+                console.log('🔄 Session ID changed! Clearing old session...')
+                fs.emptyDirSync('./session')
+            }
+        } catch {}
+    }
+
     if (fs.existsSync('./session/creds.json')) return true
 
     if (!config.SESSION_ID) {
@@ -47,6 +60,9 @@ async function getSession() {
                     .on('error', reject)
             })
             if (fs.existsSync('./session/creds.json')) {
+                try {
+                    fs.writeFileSync(idPath, config.SESSION_ID)
+                } catch {}
                 console.log('✅ Session downloaded!\n')
                 return true
             }
