@@ -55,7 +55,11 @@ const OBFUSCATION_OPTIONS = {
 async function cleanTargetDirectory() {
   console.log(`🧹 Cleaning target directory: ${TARGET_DIR}`);
   if (await fs.pathExists(TARGET_DIR)) {
-    await fs.emptyDir(TARGET_DIR);
+    const items = await fs.readdir(TARGET_DIR);
+    for (const item of items) {
+      if (item === '.git') continue;
+      await fs.remove(path.join(TARGET_DIR, item));
+    }
   } else {
     await fs.ensureDir(TARGET_DIR);
   }
