@@ -1,35 +1,27 @@
 import { bot } from '../lib/handler.js'
-import { execFile } from 'child_process'
-import { promisify } from 'util'
-import { existsSync, unlinkSync, readFileSync } from 'fs'
-import { resolve } from 'path'
-import { fileURLToPath } from 'url'
-import { dirname } from 'path'
-import { execSync } from 'child_process'
-import ffmpegStaticPath from 'ffmpeg-static'
+import { existsSync, unlinkSync, readFileSync, createWriteStream } from 'fs'
+import yts from 'yt-search'
+import { youtube } from 'btch-downloader'
+import axios from 'axios'
 
-const execFileAsync = promisify(execFile)
-const __dir = dirname(fileURLToPath(import.meta.url))
-const YTDLP = process.platform === 'win32'
-    ? resolve(__dir, '../yt-dlp.exe')
-    : existsSync(resolve(__dir, '../yt-dlp'))
-        ? resolve(__dir, '../yt-dlp')
-        : 'yt-dlp'
-
-// On Linux, prefer system ffmpeg; on Windows use ffmpeg-static
-function getFfmpegDir() {
-    if (process.platform !== 'win32') {
-        try {
-            const p = execSync('which ffmpeg', { encoding: 'utf8' }).trim()
-            if (p) return p.replace(/\/[^\/]+$/, '')
-        } catch {}
-        try {
-            execSync(`chmod +x "${ffmpegStaticPath}"`, { stdio: 'ignore' })
-        } catch {}
-    }
-    return ffmpegStaticPath.replace(/[/\\][^\/\\]+$/, '')
+// Helper: Download URL to disk
+async function downloadFile(url, outPath) {
+    const writer = createWriteStream(outPath)
+    const response = await axios({
+        url,
+        method: 'GET',
+        responseType: 'stream',
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+    })
+    response.data.pipe(writer)
+    return new Promise((resolve, reject) => {
+        writer.on('finish', resolve)
+        writer.on('error', reject)
+        response.data.on('error', reject)
+    })
 }
-const FFMPEG = getFfmpegDir()
 
 // Convert any YT URL to clean watch URL
 function getYTUrl(str) {
@@ -44,44 +36,56 @@ function getYTUrl(str) {
     return null
 }
 
-async function ytInfo(url) {
-    const { stdout } = await execFileAsync(YTDLP, [
-        '--dump-json', '--no-playlist', '--no-warnings', url
-    ], { timeout: 30000 })
-    return JSON.parse(stdout)
+// Helper: Format Views & Duration
+function formatViews(views) {
+    if (!views) return 'N/A'
+    if (views >= 1000000000) return (views / 1000000000).toFixed(1) + 'B'
+    if (views >= 1000000) return (views / 1000000).toFixed(1) + 'M'
+    if (views >= 1000) return (views / 1000).toFixed(1) + 'K'
+    return views.toString()
 }
 
-async function ytDownload(url, type, outPath) {
-    const ffDir = FFMPEG
-    const args = type === 'audio'
-        ? ['-x', '--audio-format', 'mp3', '--audio-quality', '5',
-           '--ffmpeg-location', ffDir,
-           '-o', outPath, '--no-playlist', '--no-warnings', url]
-        : ['-f', 'bestvideo[height<=480]+bestaudio/best[height<=480]',
-           '--merge-output-format', 'mp4',
-           '--ffmpeg-location', ffDir,
-           '-o', outPath, '--no-playlist', '--no-warnings', url]
-    await execFileAsync(YTDLP, args, { timeout: 180000 })
+function formatDuration(sec) {
+    if (!sec) return '00:00'
+    const m = Math.floor(sec / 60)
+    const s = Math.floor(sec % 60)
+    return `${m}:${s < 10 ? '0' : ''}${s}`
 }
 
-// ── .yt ────────────────────────────────────────────────────
+// Helper: Search YouTube via yt-search
+async function searchYT(query) {
+    const results = await yts(query)
+    if (!results?.videos?.length) throw new Error('No results found')
+    const v = results.videos[0]
+    return {
+        id: v.videoId,
+        title: v.title,
+        duration: v.seconds,
+        view_count: v.views,
+        channel: v.author?.name,
+        uploader: v.author?.name
+    }
+}
+
+// ── .yt / .ytmp3 ───────────────────────────────────────────
 bot({ pattern: 'yt', desc: 'Download YouTube audio', type: 'download' }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Usage:* `.yt https://youtu.be/xxx`')
     const url = getYTUrl(args)
     if (!url) return msg.reply('❌ *Not a valid YouTube link!*')
 
     await msg.reply('⏳ *Downloading audio...*')
-    const tmp = `./yt_${Date.now()}`
-    const out = `${tmp}.mp3`
+    const out = `./yt_${Date.now()}.mp3`
     try {
-        const info  = await ytInfo(url)
-        const title = (info.title || 'Audio').slice(0, 60)
-        const dur   = info.duration || 0
-        if (dur > 600) return msg.reply('❌ *Max 10 minutes!*')
+        const res = await youtube(url)
+        if (!res || !res.mp3) return msg.reply('❌ *Failed to get download link!*')
 
-        await ytDownload(url, 'audio', `${tmp}.%(ext)s`)
+        const title = (res.title || 'Audio').slice(0, 60)
+
+        await downloadFile(res.mp3, out)
+        if (!existsSync(out)) return msg.reply('❌ *Download failed!*')
+
         const buf = readFileSync(out)
-        if (existsSync(out)) unlinkSync(out)
+        unlinkSync(out)
 
         await msg.client.sendMessage(msg.jid, {
             audio: buf, mimetype: 'audio/mpeg',
@@ -95,30 +99,30 @@ bot({ pattern: 'yt', desc: 'Download YouTube audio', type: 'download' }, async (
     }
 })
 
-// ── .ytmp3 ─────────────────────────────────────────────────
 bot({ pattern: 'ytmp3', desc: 'Download YouTube MP3', type: 'download' }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Usage:* `.ytmp3 https://youtu.be/xxx`')
     const url = getYTUrl(args)
     if (!url) return msg.reply('❌ *Not a valid YouTube link!*')
 
     await msg.reply('⏳ *Downloading audio...*')
-    const tmp = `./ytmp3_${Date.now()}`
-    const out = `${tmp}.mp3`
+    const out = `./ytmp3_${Date.now()}.mp3`
     try {
-        const info  = await ytInfo(url)
-        const title = (info.title || 'Audio').slice(0, 60)
-        const dur   = info.duration || 0
-        if (dur > 600) return msg.reply('❌ *Max 10 minutes!*')
+        const res = await youtube(url)
+        if (!res || !res.mp3) return msg.reply('❌ *Failed to get download link!*')
 
-        await ytDownload(url, 'audio', `${tmp}.%(ext)s`)
+        const title = (res.title || 'Audio').slice(0, 60)
+
+        await downloadFile(res.mp3, out)
+        if (!existsSync(out)) return msg.reply('❌ *Download failed!*')
+
         const buf = readFileSync(out)
-        if (existsSync(out)) unlinkSync(out)
+        unlinkSync(out)
 
         await msg.client.sendMessage(msg.jid, {
             audio: buf, mimetype: 'audio/mpeg',
-            fileName: `${title}.mp3`, ptt: true
+            fileName: `${title}.mp3`, ptt: false
         }, { quoted: msg.raw })
-        await msg.reply(`✅ *${title}*\n⏱️ ${Math.floor(dur/60)}m ${dur%60}s`)
+        await msg.reply(`✅ *${title}*`)
     } catch (e) {
         if (existsSync(out)) unlinkSync(out)
         console.error('[YTMP3 ERR]', e.message)
@@ -132,26 +136,22 @@ bot({ pattern: 'ytmp4', desc: 'Download YouTube MP4', type: 'download' }, async 
     const url = getYTUrl(args)
     if (!url) return msg.reply('❌ *Not a valid YouTube link!*')
 
-    await msg.reply('⏳ *Downloading video... (2-3 min max)*')
+    await msg.reply('⏳ *Downloading video...*')
     const out = `./ytmp4_${Date.now()}.mp4`
     try {
-        const info  = await ytInfo(url)
-        const title = (info.title || 'Video').slice(0, 60)
-        const dur   = info.duration || 0
-        if (dur > 120) return msg.reply('❌ *Max 2 minutes for video!*\n> Use .yt for longer audio')
+        const res = await youtube(url)
+        if (!res || !res.mp4) return msg.reply('❌ *Failed to get download link!*')
 
-        await execFileAsync(YTDLP, [
-            '-f', '18/best[height<=360]/best[ext=mp4]/best',
-            '-o', out,
-            '--no-playlist', '--no-warnings', url
-        ], { timeout: 120000 })
+        const title = (res.title || 'Video').slice(0, 60)
 
+        await downloadFile(res.mp4, out)
         if (!existsSync(out)) return msg.reply('❌ *Download failed!*')
+
         const buf = readFileSync(out)
         unlinkSync(out)
 
-        if (buf.length > 15 * 1024 * 1024) {
-            return msg.reply(`❌ *File too large (${(buf.length/1024/1024).toFixed(1)}MB)!*\n> WhatsApp max 16MB. Use .yt for audio.`)
+        if (buf.length > 30 * 1024 * 1024) {
+            return msg.reply(`❌ *File too large (${(buf.length/1024/1024).toFixed(1)}MB)!*\n> WhatsApp max limit is 30MB.`)
         }
 
         await msg.client.sendMessage(msg.jid, {
@@ -170,16 +170,12 @@ bot({ pattern: 'ytmp4', desc: 'Download YouTube MP4', type: 'download' }, async 
 bot({ pattern: 'ytsearch', desc: 'Search YouTube', type: 'download' }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Usage:* `.ytsearch song name`')
     try {
-        const playdl = (await import('play-dl')).default
-        const results = await playdl.search(args, { limit: 5, source: { youtube: 'video' } })
-        if (!results?.length) return msg.reply('❌ *No results!*')
+        const results = await yts(args)
+        if (!results?.videos?.length) return msg.reply('❌ *No results!*')
 
         let text = `🔍 *Results: ${args}*\n\n`
-        results.forEach((v, i) => {
-            const dur = v.durationInSec
-                ? `${Math.floor(v.durationInSec/60)}:${String(v.durationInSec%60).padStart(2,'0')}`
-                : '?'
-            text += `*${i+1}.* ${v.title}\n   ⏱️ ${dur} | 🔗 https://youtu.be/${v.id}\n\n`
+        results.videos.slice(0, 5).forEach((v, i) => {
+            text += `*${i+1}.* ${v.title}\n   ⏱️ ${v.timestamp} | 🔗 ${v.url}\n\n`
         })
         await msg.reply(text)
     } catch (e) {
@@ -187,63 +183,16 @@ bot({ pattern: 'ytsearch', desc: 'Search YouTube', type: 'download' }, async (ms
     }
 })
 
-// ── Helper: Format Views & Duration ──────────────────────
-function formatViews(views) {
-    if (!views) return 'N/A'
-    if (views >= 1000000000) return (views / 1000000000).toFixed(1) + 'B'
-    if (views >= 1000000) return (views / 1000000).toFixed(1) + 'M'
-    if (views >= 1000) return (views / 1000).toFixed(1) + 'K'
-    return views.toString()
-}
-
-function formatDuration(sec) {
-    if (!sec) return '00:00'
-    const m = Math.floor(sec / 60)
-    const s = Math.floor(sec % 60)
-    return `${m}:${s < 10 ? '0' : ''}${s}`
-}
-
-// ── Helper: Search YouTube via play-dl (bypasses VPS bot-block) ──
-async function searchYT(query) {
-    const playdl = (await import('play-dl')).default
-    const results = await playdl.search(query, { limit: 1, source: { youtube: 'video' } })
-    if (!results?.length) throw new Error('No results found')
-    const v = results[0]
-    return {
-        id: v.id,
-        title: v.title,
-        duration: v.durationInSec,
-        view_count: v.views,
-        channel: v.channel?.name,
-        uploader: v.channel?.name
-    }
-}
-
-// ── Helper: Download audio via play-dl stream, save to file ──
-async function downloadAudioPlayDl(ytUrl, outPath) {
-    const playdl = (await import('play-dl')).default
-    const { createWriteStream } = await import('fs')
-    const stream = await playdl.stream(ytUrl, { quality: 2 })
-    return new Promise((resolve, reject) => {
-        const file = createWriteStream(outPath)
-        stream.stream.pipe(file)
-        file.on('finish', resolve)
-        file.on('error', reject)
-        stream.stream.on('error', reject)
-    })
-}
-
-// ── .play (play-dl - bypasses VPS bot block) ───────────────
+// ── .play ──────────────────────────────────────────────────
 bot({ pattern: 'play', desc: 'Search & play song', type: 'download' }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Usage:* `.play song name`\nExample: `.play tere bina`')
 
-    const out = `./play_${Date.now()}.webm`
+    const out = `./play_${Date.now()}.mp3`
     try {
         const top = await searchYT(args)
         const ytUrl = `https://www.youtube.com/watch?v=${top.id}`
         const title = (top.title || args).slice(0, 80)
         const dur = top.duration || 0
-        if (dur > 600) return msg.reply('❌ *Song too long! Max 10 minutes.*')
 
         const thumbUrl = `https://i.ytimg.com/vi/${top.id}/hqdefault.jpg`
         const viewsStr = formatViews(top.view_count)
@@ -262,15 +211,18 @@ bot({ pattern: 'play', desc: 'Search & play song', type: 'download' }, async (ms
             image: { url: thumbUrl }, caption
         }, { quoted: msg.raw })
 
-        await downloadAudioPlayDl(ytUrl, out)
+        const res = await youtube(ytUrl)
+        if (!res || !res.mp3) return msg.reply('❌ *Failed to get download link!*')
+
+        await downloadFile(res.mp3, out)
 
         if (!existsSync(out)) return msg.reply('❌ *Download failed!*')
         const buf = readFileSync(out)
         unlinkSync(out)
 
         await msg.client.sendMessage(msg.jid, {
-            audio: buf, mimetype: 'audio/webm',
-            fileName: `${title}.webm`, ptt: false
+            audio: buf, mimetype: 'audio/mpeg',
+            fileName: `${title}.mp3`, ptt: false
         }, { quoted: msg.raw })
 
     } catch (e) {
@@ -280,17 +232,16 @@ bot({ pattern: 'play', desc: 'Search & play song', type: 'download' }, async (ms
     }
 })
 
-// ── .song (play-dl - bypasses VPS bot block) ───────────────
+// ── .song ──────────────────────────────────────────────────
 bot({ pattern: 'song', desc: 'Search & download song', type: 'download' }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Usage:* `.song song name`\nExample: `.song tere bina`')
 
-    const out = `./song_${Date.now()}.webm`
+    const out = `./song_${Date.now()}.mp3`
     try {
         const top = await searchYT(args)
         const ytUrl = `https://www.youtube.com/watch?v=${top.id}`
         const title = (top.title || args).slice(0, 80)
         const dur = top.duration || 0
-        if (dur > 600) return msg.reply('❌ *Song too long! Max 10 minutes.*')
 
         const thumbUrl = `https://i.ytimg.com/vi/${top.id}/hqdefault.jpg`
         const viewsStr = formatViews(top.view_count)
@@ -309,15 +260,18 @@ bot({ pattern: 'song', desc: 'Search & download song', type: 'download' }, async
             image: { url: thumbUrl }, caption
         }, { quoted: msg.raw })
 
-        await downloadAudioPlayDl(ytUrl, out)
+        const res = await youtube(ytUrl)
+        if (!res || !res.mp3) return msg.reply('❌ *Failed to get download link!*')
+
+        await downloadFile(res.mp3, out)
 
         if (!existsSync(out)) return msg.reply('❌ *Download failed!*')
         const buf = readFileSync(out)
         unlinkSync(out)
 
         await msg.client.sendMessage(msg.jid, {
-            audio: buf, mimetype: 'audio/webm',
-            fileName: `${title}.webm`, ptt: false
+            audio: buf, mimetype: 'audio/mpeg',
+            fileName: `${title}.mp3`, ptt: false
         }, { quoted: msg.raw })
 
     } catch (e) {
@@ -327,7 +281,7 @@ bot({ pattern: 'song', desc: 'Search & download song', type: 'download' }, async
     }
 })
 
-// ── .video (play-dl search + yt-dlp download) ──────────────
+// ── .video ─────────────────────────────────────────────────
 bot({ pattern: 'video', desc: 'Search & download video (MP4)', type: 'download' }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Usage:* `.video song name`\nExample: `.video tere bina`')
 
@@ -337,23 +291,20 @@ bot({ pattern: 'video', desc: 'Search & download video (MP4)', type: 'download' 
         const top   = await searchYT(args)
         const ytUrl = `https://www.youtube.com/watch?v=${top.id}`
         const title = (top.title || args).slice(0, 60)
-        const dur   = top.duration || 0
-
-        if (dur > 120) return msg.reply('❌ *Video too long! Max 2 minutes.*\n> Use .play for audio')
 
         await msg.reply(`🎬 *Downloading:* ${title}`)
 
-        await execFileAsync(YTDLP, [
-            '-f', '18/best[height<=360]/best[ext=mp4]/best',
-            '-o', out, '--no-playlist', '--no-warnings', ytUrl
-        ], { timeout: 120000 })
+        const res = await youtube(ytUrl)
+        if (!res || !res.mp4) return msg.reply('❌ *Failed to get download link!*')
+
+        await downloadFile(res.mp4, out)
 
         if (!existsSync(out)) return msg.reply('❌ *Download failed!*')
         const buf = readFileSync(out)
         unlinkSync(out)
 
-        if (buf.length > 15 * 1024 * 1024) {
-            return msg.reply(`❌ *File too large!* Use .play for audio.`)
+        if (buf.length > 30 * 1024 * 1024) {
+            return msg.reply(`❌ *File too large (${(buf.length/1024/1024).toFixed(1)}MB)!* WhatsApp limits apply.`)
         }
 
         await msg.client.sendMessage(msg.jid, {
