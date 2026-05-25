@@ -10,7 +10,11 @@ import axios from 'axios'
 
 const execFileAsync = promisify(execFile)
 const __dir = dirname(fileURLToPath(import.meta.url))
-const YTDLP = resolve(__dir, '../yt-dlp.exe')
+const YTDLP = process.platform === 'win32'
+    ? resolve(__dir, '../yt-dlp.exe')
+    : existsSync(resolve(__dir, '../yt-dlp'))
+        ? resolve(__dir, '../yt-dlp')
+        : 'yt-dlp'
 const FFDIR = ffmpegPath.replace(/[/\\][^/\\]+$/, '')
 
 function extractUrl(str) {
