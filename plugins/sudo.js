@@ -1,93 +1,131 @@
-const { addCommand } = require('../lib/pluginHandler')
-const config = require('../config')
-const fs = require('fs')
-const path = require('path')
+import { bot } from '../lib/handler.js'
+import db from '../lib/database.js'
 
-function updateEnv(key, value) {
-    const envPath = path.join(__dirname, '../.env')
-    if (fs.existsSync(envPath)) {
-        let envContent = fs.readFileSync(envPath, 'utf8')
-        if (envContent.includes(`${key}=`)) {
-            const regex = new RegExp(`^${key}=.*`, 'gm')
-            envContent = envContent.replace(regex, `${key}=${value}`)
-        } else {
-            envContent += `\n${key}=${value}`
-        }
-        fs.writeFileSync(envPath, envContent)
+// ── Helper: get target number from reply/mention/args ──────
+function getTargetNum(msg, args) {
+    const m   = msg.raw
+    const ctx = m.message?.extendedTextMessage?.contextInfo
+
+    // 1. From reply
+    if (ctx?.participant) {
+        return ctx.participant.split('@')[0].split(':')[0]
     }
+    // 2. From mention
+    const mentioned = ctx?.mentionedJid?.[0]
+    if (mentioned) return mentioned.split('@')[0].split(':')[0]
+
+    // 3. From args (number)
+    if (args) {
+        const num = args.replace(/[^0-9]/g, '').trim()
+        if (num.length > 6) return num
+    }
+
+    return null
 }
 
-addCommand({
-    pattern: 'setsudo',
-    desc: 'Add a sudo user',
-    function: async (sock, message) => {
-        // Only OWNER or the bot's own number can add SUDO
-        const senderNumber = message.sender.split('@')[0]
-        if (senderNumber !== config.OWNER_NUMBER && !message.msg.key.fromMe) {
-            return await message.reply('❌ This command is strictly for the OWNER only.')
-        }
+// ── .setsudo ───────────────────────────────────────────────
+bot({
+    pattern: 'setsudo ?(.*)',
+    desc: 'Add a user to sudo (sub-owner) list',
+    type: 'owner',
+    owner: true
+}, async (msg, match, args) => {
+    const num = getTargetNum(msg, args)
 
-        let target = message.quoted ? message.quoted.sender : (message.mentions[0] || (message.args ? message.args.replace(/[^0-9]/g, '') + '@s.whatsapp.net' : null))
-        if (!target || target === '@s.whatsapp.net') return await message.reply('Please tag, quote, or provide the number to add as SUDO.')
-
-        const number = target.split('@')[0]
-        if (number === config.OWNER_NUMBER) return await message.reply('⚠️ This number is already the owner.')
-
-        let sudoList = config.SUDO ? config.SUDO.split(',') : []
-        if (sudoList.includes(number)) return await message.reply(`⚠️ ${number} is already a SUDO user.`)
-
-        sudoList.push(number)
-        config.SUDO = sudoList.join(',')
-        updateEnv('SUDO', config.SUDO)
-
-        await message.reply(`✅ *${number}* has been successfully added as a SUDO user.\nThey can now use all bot commands.`)
+    if (!num) {
+        return msg.reply(
+            `👑 *Add Sudo User*\n` +
+            `━━━━━━━━━━━━━━━━━\n\n` +
+            `*Usage:*\n` +
+            `◦ Reply to a message: \`.setsudo\`\n` +
+            `◦ Mention: \`.setsudo @user\`\n` +
+            `◦ Number: \`.setsudo 923001234567\`\n\n` +
+            `> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
+        )
     }
+
+    // Initialize sudo array if not present
+    if (!db.data.sudo) db.data.sudo = []
+
+    if (db.data.sudo.includes(num)) {
+        return msg.reply(`⚠️ *+${num}* is already in the Sudo list!`)
+    }
+
+    db.data.sudo.push(num)
+    db.save()
+
+    await msg.reply(
+        `✅ *Sudo Added Successfully!*\n\n` +
+        `👤 *Number:* +${num}\n` +
+        `🔑 *Level:* Sub-Owner (Sudo)\n\n` +
+        `> This user now has *owner-level* access to bot commands!\n` +
+        `> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
+    )
 })
 
-addCommand({
-    pattern: 'delsudo',
-    desc: 'Remove a sudo user',
-    function: async (sock, message) => {
-        const senderNumber = message.sender.split('@')[0]
-        if (senderNumber !== config.OWNER_NUMBER && !message.msg.key.fromMe) {
-            return await message.reply('❌ This command is strictly for the OWNER only.')
-        }
+// ── .delsudo ───────────────────────────────────────────────
+bot({
+    pattern: 'delsudo ?(.*)',
+    desc: 'Remove a user from sudo list',
+    type: 'owner',
+    owner: true
+}, async (msg, match, args) => {
+    const num = getTargetNum(msg, args)
 
-        let target = message.quoted ? message.quoted.sender : (message.mentions[0] || (message.args ? message.args.replace(/[^0-9]/g, '') + '@s.whatsapp.net' : null))
-        if (!target || target === '@s.whatsapp.net') return await message.reply('Please tag, quote, or provide the number to remove from SUDO.')
-
-        const number = target.split('@')[0]
-        let sudoList = config.SUDO ? config.SUDO.split(',') : []
-        if (!sudoList.includes(number)) return await message.reply(`⚠️ ${number} is not a SUDO user.`)
-
-        sudoList = sudoList.filter(n => n !== number)
-        config.SUDO = sudoList.join(',')
-        updateEnv('SUDO', config.SUDO)
-
-        await message.reply(`✅ *${number}* has been removed from SUDO users.`)
+    if (!num) {
+        return msg.reply(
+            `🗑️ *Remove Sudo User*\n` +
+            `━━━━━━━━━━━━━━━━━\n\n` +
+            `*Usage:*\n` +
+            `◦ Reply to a message: \`.delsudo\`\n` +
+            `◦ Mention: \`.delsudo @user\`\n` +
+            `◦ Number: \`.delsudo 923001234567\`\n\n` +
+            `> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
+        )
     }
+
+    if (!db.data.sudo || !db.data.sudo.includes(num)) {
+        return msg.reply(`❌ *+${num}* is NOT in the Sudo list!`)
+    }
+
+    db.data.sudo = db.data.sudo.filter(n => n !== num)
+    db.save()
+
+    await msg.reply(
+        `✅ *Sudo Removed Successfully!*\n\n` +
+        `👤 *Number:* +${num}\n` +
+        `🔒 *Status:* Removed from Sudo\n\n` +
+        `> This user no longer has owner-level access.\n` +
+        `> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
+    )
 })
 
-addCommand({
-    pattern: 'mode',
-    desc: 'Toggle public/private mode',
-    function: async (sock, message) => {
-        const senderNumber = message.sender.split('@')[0]
-        if (senderNumber !== config.OWNER_NUMBER && !message.msg.key.fromMe && !(config.SUDO.split(',').includes(senderNumber))) {
-            return await message.reply('❌ You are not authorized to change the bot mode.')
-        }
+// ── .sudolist ──────────────────────────────────────────────
+bot({
+    pattern: 'sudolist',
+    desc: 'Show all sudo users list',
+    type: 'owner',
+    owner: true
+}, async (msg) => {
+    const list = db.data.sudo || []
 
-        const mode = message.args.trim().toLowerCase()
-        if (mode === 'public') {
-            config.PRIVATE_MODE = 'false'
-            updateEnv('PRIVATE_MODE', 'false')
-            await message.reply('🔓 Bot is now in *PUBLIC* mode. Anyone can use the commands.')
-        } else if (mode === 'private') {
-            config.PRIVATE_MODE = 'true'
-            updateEnv('PRIVATE_MODE', 'true')
-            await message.reply('🔒 Bot is now in *PRIVATE* mode. Only Owner and Sudo users can use commands.')
-        } else {
-            await message.reply(`⚠️ Current Mode: *${config.PRIVATE_MODE === 'true' ? 'PRIVATE' : 'PUBLIC'}*\n\nTo change, type: \n${config.PREFIX === 'null' ? '' : config.PREFIX}mode public\n${config.PREFIX === 'null' ? '' : config.PREFIX}mode private`)
-        }
+    if (list.length === 0) {
+        return msg.reply(
+            `📋 *Sudo List*\n` +
+            `━━━━━━━━━━━━━━━━━\n\n` +
+            `❌ *No sudo users added yet!*\n\n` +
+            `Use \`.setsudo @user\` to add one.\n\n` +
+            `> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
+        )
     }
+
+    const formatted = list.map((num, i) => `${i + 1}. +${num}`).join('\n')
+
+    await msg.reply(
+        `👑 *Sudo Users List*\n` +
+        `━━━━━━━━━━━━━━━━━\n\n` +
+        `${formatted}\n\n` +
+        `📊 *Total:* ${list.length} sudo user(s)\n\n` +
+        `> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
+    )
 })

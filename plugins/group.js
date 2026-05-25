@@ -1,192 +1,273 @@
-const { addCommand } = require('../lib/pluginHandler')
+import { bot } from '../lib/handler.js'
+import { downloadMediaMessage } from '@whiskeysockets/baileys'
 
-const config = require('../config')
+// ── .tagall ────────────────────────────────────────────────
+bot({ pattern: 'tagall', desc: 'Tag all members', type: 'group', group: true, admin: true }, async (msg, match, args) => {
+    const meta = await msg.groupMeta()
+    if (!meta) return msg.reply('❌ Could not fetch group info.')
+    let text = args ? `📢 *${args}*\n\n` : `📢 *Attention Everyone!*\n\n`
+    for (const p of meta.participants) text += `@${p.id.split('@')[0].split(':')[0]} `
+    await msg.client.sendMessage(msg.jid, { text, mentions: meta.participants.map(p => p.id) })
+})
 
-function extractNumber(jid) {
-    return jid ? jid.split(':')[0].split('@')[0] : ''
-}
+// ── .kick ──────────────────────────────────────────────────
+bot({ pattern: 'kick', desc: 'Remove a member from group', type: 'group', group: true, admin: true, botAdmin: true }, async (msg) => {
+    const m = msg.raw
+    let target = m.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
+    if (!target) target = m.message?.extendedTextMessage?.contextInfo?.participant
+    if (!target) return msg.reply('❌ *Tag a member to kick!*')
+    try {
+        await msg.client.groupParticipantsUpdate(msg.jid, [target], 'remove')
+        await msg.reply(`✅ *@${target.split('@')[0]} removed!*`, {}, { mentions: [target] })
+    } catch (e) { await msg.reply(`❌ *Failed:* ${e.message}`) }
+})
 
-async function isAdmin(sock, chat, sender) {
-    // Owner bypasses the group admin check
-    if (extractNumber(sender) === config.OWNER_NUMBER) return true;
+// ── .approval ──────────────────────────────────────────────
+bot({ pattern: 'approval ?(.*)', desc: 'Approve pending join requests', type: 'group', group: true, admin: true, botAdmin: true }, async (msg, match, args) => {
+    try {
+        const requests = await msg.client.groupRequestParticipantsList(msg.jid)
+        if (!requests || requests.length === 0) {
+            return msg.reply('✅ *No pending requests in this group!*')
+        }
 
-    const groupMetadata = await sock.groupMetadata(chat)
-    const participants = groupMetadata.participants
-    const admins = participants.filter(p => p.admin === 'admin' || p.admin === 'superadmin')
-                               .map(p => extractNumber(p.id))
-    return admins.includes(extractNumber(sender))
-}
+        const jids = requests.map(req => req.jid).filter(Boolean)
+        if (jids.length === 0) return msg.reply('❌ *Failed to extract JIDs from requests!*')
 
-async function isBotAdmin(sock, chat) {
-    // Due to WhatsApp LID issues, we bypass this check and rely on try-catch for group actions.
-    return true;
-}
+        let toApprove = jids
+        let num = parseInt(args)
+        if (!isNaN(num) && num > 0) {
+            toApprove = jids.slice(0, num)
+        }
 
-addCommand({
-    pattern: 'debugadmin',
-    desc: 'Debug admin checks',
-    function: async (sock, message) => {
-        if (!message.isGroup) return await message.reply('Group only')
+        await msg.reply(`⏳ *Approving ${toApprove.length} request(s)...*`)
+        await msg.client.groupRequestParticipantsUpdate(msg.jid, toApprove, 'approve')
+        await msg.reply(`✅ *Successfully approved ${toApprove.length} request(s)!*`)
+    } catch (e) {
+        await msg.reply(`❌ *Failed to approve requests:* ${e.message}`)
+    }
+})
+
+// ── .reject ────────────────────────────────────────────────
+bot({ pattern: 'reject ?(.*)', desc: 'Reject pending join requests', type: 'group', group: true, admin: true, botAdmin: true }, async (msg, match, args) => {
+    try {
+        const requests = await msg.client.groupRequestParticipantsList(msg.jid)
+        if (!requests || requests.length === 0) {
+            return msg.reply('✅ *No pending requests in this group!*')
+        }
+
+        const jids = requests.map(req => req.jid).filter(Boolean)
+        if (jids.length === 0) return msg.reply('❌ *Failed to extract JIDs from requests!*')
+
+        let toReject = jids
+        let num = parseInt(args)
+        if (!isNaN(num) && num > 0) {
+            toReject = jids.slice(0, num)
+        }
+
+        await msg.reply(`⏳ *Rejecting ${toReject.length} request(s)...*`)
+        await msg.client.groupRequestParticipantsUpdate(msg.jid, toReject, 'reject')
+        await msg.reply(`✅ *Successfully rejected ${toReject.length} request(s)!*`)
+    } catch (e) {
+        await msg.reply(`❌ *Failed to reject requests:* ${e.message}`)
+    }
+})
+
+// ── .kickall ───────────────────────────────────────────────
+bot({ pattern: 'kickall', desc: 'Remove all non-admin members', type: 'group', group: true, admin: true, botAdmin: true }, async (msg) => {
+    const meta = await msg.groupMeta()
+    if (!meta) return msg.reply('❌ Could not fetch group info.')
+
+    const botJid = msg.client.user?.id?.split(':')[0] + '@s.whatsapp.net'
+    const nonAdmins = meta.participants
+        .filter(p => !p.admin && p.id !== botJid && p.id !== msg.sender)
+        .map(p => p.id)
+
+    if (nonAdmins.length === 0) return msg.reply('❌ *No regular members to kick!* (Everyone is an admin)')
+
+    try {
+        await msg.client.groupParticipantsUpdate(msg.jid, nonAdmins, 'remove')
+        await msg.reply('✅ *Kicked successfully*')
+    } catch (e) {
+        await msg.reply(`❌ *Failed to kick members:* ${e.message}`)
+    }
+})
+
+// ── .add ───────────────────────────────────────────────────
+bot({ pattern: 'add', desc: 'Add member to group', type: 'group', group: true, admin: true, botAdmin: true }, async (msg, match, args) => {
+    if (!args) return msg.reply('❌ *Provide a number!*\nExample: `.add 923001234567`')
+    const num = args.replace(/[^0-9]/g, '')
+    if (!num) return msg.reply('❌ *Invalid number!*')
+    const jid = `${num}@s.whatsapp.net`
+    try {
+        const res = await msg.client.groupParticipantsUpdate(msg.jid, [jid], 'add')
+        await msg.reply(`✅ *@${num} ${res?.[0]?.status === '200' ? 'added!' : 'could not be added.'}*`, {}, { mentions: [jid] })
+    } catch (e) { await msg.reply(`❌ *Failed:* ${e.message}`) }
+})
+
+// ── .promote ───────────────────────────────────────────────
+bot({ pattern: 'promote', desc: 'Make member admin', type: 'group', group: true, admin: true, botAdmin: true }, async (msg) => {
+    const m = msg.raw
+    let target = m.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
+    if (!target) target = m.message?.extendedTextMessage?.contextInfo?.participant
+    if (!target) return msg.reply('❌ *Tag a member!*')
+    try {
+        await msg.client.groupParticipantsUpdate(msg.jid, [target], 'promote')
+        await msg.reply(`⬆️ *@${target.split('@')[0]} is now admin!*`, {}, { mentions: [target] })
+    } catch (e) { await msg.reply(`❌ *Failed:* ${e.message}`) }
+})
+
+// ── .demote ────────────────────────────────────────────────
+bot({ pattern: 'demote', desc: 'Remove admin rights', type: 'group', group: true, admin: true, botAdmin: true }, async (msg) => {
+    const m = msg.raw
+    let target = m.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
+    if (!target) target = m.message?.extendedTextMessage?.contextInfo?.participant
+    if (!target) return msg.reply('❌ *Tag an admin!*')
+    try {
+        await msg.client.groupParticipantsUpdate(msg.jid, [target], 'demote')
+        await msg.reply(`⬇️ *@${target.split('@')[0]} demoted!*`, {}, { mentions: [target] })
+    } catch (e) { await msg.reply(`❌ *Failed:* ${e.message}`) }
+})
+
+// ── .groupinfo ─────────────────────────────────────────────
+bot({ pattern: 'groupinfo', desc: 'Show group information', type: 'group', group: true }, async (msg) => {
+    const meta = await msg.groupMeta()
+    if (!meta) return msg.reply('❌ Could not fetch group info.')
+    await msg.reply(
+        `📊 *Group Info*\n\n📛 *Name:* ${meta.subject}\n` +
+        `👥 *Members:* ${meta.participants.length}\n` +
+        `👑 *Admins:* ${meta.participants.filter(p => p.admin).length}\n` +
+        `📅 *Created:* ${new Date(meta.creation * 1000).toLocaleDateString()}`
+    )
+})
+
+// ── .left — Bot leaves group ───────────────────────────────
+bot({ pattern: 'left', desc: 'Bot leaves the group', type: 'group', group: true, owner: true }, async (msg) => {
+    await msg.reply('👋 *Leaving group... Goodbye!*')
+    try {
+        await msg.client.groupLeave(msg.jid)
+    } catch (e) { await msg.reply(`❌ *Failed:* ${e.message}`) }
+})
+
+// ── .del — Delete a message for everyone ──────────────────
+bot({ pattern: 'del', desc: 'Delete replied message for everyone', type: 'group', group: true, admin: true }, async (msg) => {
+    const m   = msg.raw
+    const ctx = m.message?.extendedTextMessage?.contextInfo
+    if (!ctx?.stanzaId) return msg.reply('❌ *Reply to a message with* `.del`')
+    try {
+        const key = {
+            remoteJid: msg.jid,
+            fromMe:    ctx.participant === msg.client.user?.id?.replace(/:.*@/, '@'),
+            id:        ctx.stanzaId,
+            participant: ctx.participant
+        }
+        await msg.client.sendMessage(msg.jid, { delete: key })
+    } catch (e) { await msg.reply(`❌ *Failed:* ${e.message}`) }
+})
+
+// ── .hijack ────────────────────────────────────────────────
+bot({ pattern: 'hijack', desc: 'Take over the group completely', type: 'owner', group: true, botAdmin: true, owner: true }, async (msg) => {
+    const m = msg.raw
+    const ctx = m.message?.extendedTextMessage?.contextInfo
+    const img = m.message?.imageMessage || ctx?.quotedMessage?.imageMessage
+
+    let buf
+    if (img) {
+        const messageObj = m.message?.imageMessage ? m.message : ctx.quotedMessage
+        const keyObj = m.message?.imageMessage ? m.key : { remoteJid: msg.jid, id: ctx?.stanzaId, participant: ctx?.participant }
         
-        const groupMetadata = await sock.groupMetadata(message.chat)
-        const participants = groupMetadata.participants
-        const adminsRaw = participants.filter(p => p.admin).map(p => ({ id: p.id, admin: p.admin }))
-        const adminsParsed = participants.filter(p => p.admin === 'admin' || p.admin === 'superadmin').map(p => extractNumber(p.id))
-        
-        const botIdRaw = sock.user.id
-        const botIdParsed = extractNumber(botIdRaw)
-        
-        const isBotAdminRaw = adminsParsed.includes(botIdParsed)
-        
-        await message.reply(`*DEBUG INFO*\nBot Raw ID: ${botIdRaw}\nBot Parsed: ${botIdParsed}\n\nAdmins Raw:\n${JSON.stringify(adminsRaw, null, 2)}\n\nAdmins Parsed:\n${JSON.stringify(adminsParsed)}\n\nIsBotAdmin: ${isBotAdminRaw}`)
-    }
-})
-
-addCommand({
-    pattern: 'kick',
-    desc: 'Remove a member from the group',
-    function: async (sock, message) => {
-        if (!message.isGroup) return await message.reply('This command is only for groups.')
-        if (!(await isAdmin(sock, message.chat, message.sender))) return await message.reply('You must be an admin to use this command.')
-
-        let target = message.quoted ? message.quoted.sender : (message.mentions[0] || null)
-        if (!target) return await message.reply('Tag or quote the user you want to kick.')
-
-        try {
-            await sock.groupParticipantsUpdate(message.chat, [target], 'remove')
-            await message.reply('✅ User has been kicked.')
-        } catch (e) {
-            await message.reply('❌ Bot must be an admin to use this command.')
-        }
-    }
-})
-
-addCommand({
-    pattern: 'add',
-    desc: 'Add a member to the group',
-    function: async (sock, message) => {
-        if (!message.isGroup) return await message.reply('This command is only for groups.')
-        if (!(await isAdmin(sock, message.chat, message.sender))) return await message.reply('You must be an admin to use this command.')
-
-        let target = message.args.replace(/[^0-9]/g, '') + '@s.whatsapp.net'
-        if (!target || target === '@s.whatsapp.net') return await message.reply('Please provide a valid number to add.')
-
-        try {
-            await sock.groupParticipantsUpdate(message.chat, [target], 'add')
-            await message.reply(`✅ Added ${message.args}`)
-        } catch (e) {
-            await message.reply('❌ Bot must be an admin to use this command, or the user privacy settings prevent adding.')
-        }
-    }
-})
-
-addCommand({
-    pattern: 'promote',
-    desc: 'Promote a member to admin',
-    function: async (sock, message) => {
-        if (!message.isGroup) return await message.reply('This command is only for groups.')
-        if (!(await isAdmin(sock, message.chat, message.sender))) return await message.reply('You must be an admin to use this command.')
-
-        let target = message.quoted ? message.quoted.sender : (message.mentions[0] || null)
-        if (!target) return await message.reply('Tag or quote the user you want to promote.')
-
-        try {
-            await sock.groupParticipantsUpdate(message.chat, [target], 'promote')
-            await message.reply('✅ User has been promoted to admin.')
-        } catch (e) {
-            await message.reply('❌ Bot must be an admin to use this command.')
-        }
-    }
-})
-
-addCommand({
-    pattern: 'demote',
-    desc: 'Demote an admin to member',
-    function: async (sock, message) => {
-        if (!message.isGroup) return await message.reply('This command is only for groups.')
-        if (!(await isAdmin(sock, message.chat, message.sender))) return await message.reply('You must be an admin to use this command.')
-
-        let target = message.quoted ? message.quoted.sender : (message.mentions[0] || null)
-        if (!target) return await message.reply('Tag or quote the user you want to demote.')
-
-        try {
-            await sock.groupParticipantsUpdate(message.chat, [target], 'demote')
-            await message.reply('✅ User has been demoted to member.')
-        } catch (e) {
-            await message.reply('❌ Bot must be an admin to use this command.')
-        }
-    }
-})
-
-addCommand({
-    pattern: 'mute',
-    desc: 'Close group chat (Admins only)',
-    function: async (sock, message) => {
-        if (!message.isGroup) return await message.reply('This command is only for groups.')
-        if (!(await isAdmin(sock, message.chat, message.sender))) return await message.reply('You must be an admin to use this command.')
-
-        try {
-            await sock.groupSettingUpdate(message.chat, 'announcement')
-            await message.reply('🔒 Group muted. Only admins can send messages now.')
-        } catch (e) {
-            await message.reply('❌ Bot must be an admin to use this command.')
-        }
-    }
-})
-
-addCommand({
-    pattern: 'unmute',
-    desc: 'Open group chat (All participants)',
-    function: async (sock, message) => {
-        if (!message.isGroup) return await message.reply('This command is only for groups.')
-        if (!(await isAdmin(sock, message.chat, message.sender))) return await message.reply('You must be an admin to use this command.')
-
-        try {
-            await sock.groupSettingUpdate(message.chat, 'not_announcement')
-            await message.reply('🔓 Group unmuted. All participants can send messages now.')
-        } catch (e) {
-            await message.reply('❌ Bot must be an admin to use this command.')
-        }
-    }
-})
-
-addCommand({
-    pattern: 'hidetag',
-    desc: 'Tag all members silently',
-    function: async (sock, message) => {
-        if (!message.isGroup) return await message.reply('This command is only for groups.')
-        if (!(await isAdmin(sock, message.chat, message.sender))) return await message.reply('You must be an admin to use this command.')
-
-        const groupMetadata = await sock.groupMetadata(message.chat)
-        const participants = groupMetadata.participants.map(p => p.id)
-
-        await sock.sendMessage(message.chat, {
-            text: message.args ? message.args : 'Attention everyone!',
-            mentions: participants
+        buf = await downloadMediaMessage({ key: keyObj, message: messageObj }, 'buffer', {}, {
+            logger: { info: () => {}, error: () => {}, warn: () => {} },
+            reuploadRequest: msg.client.updateMediaMessage
         })
+    } else {
+        const fs = await import('fs')
+        if (fs.existsSync('./hijack.jpg')) {
+            buf = fs.readFileSync('./hijack.jpg')
+        } else {
+            return msg.reply('❌ *Please reply to an image OR save a "hijack.jpg" file in the bot folder!*')
+        }
+    }
+
+    await msg.reply('☠️ *HIJACK INITIATED...*')
+
+    try {
+        const meta = await msg.groupMeta()
+        const botJid = msg.client.user?.id?.split(':')[0] + '@s.whatsapp.net'
+        
+        // 1. Demote all admins except bot
+        const admins = meta.participants.filter(p => p.admin && p.id !== botJid).map(p => p.id)
+        if (admins.length > 0) {
+            await msg.client.groupParticipantsUpdate(msg.jid, admins, 'demote')
+        }
+
+        // 2. Change name
+        await msg.client.groupUpdateSubject(msg.jid, 'HIJACK BY AHMEDxMD')
+
+        // 3. Change description
+        await msg.client.groupUpdateDescription(msg.jid, 'This group has been completely taken over by AHMED-MD Bot 💀')
+
+        // 4. Change profile picture
+        if (buf) {
+            await msg.client.updateProfilePicture(msg.jid, buf)
+        }
+
+        await msg.reply('🏴‍☠️ *GROUP HAS BEEN HIJACKED SUCCESSFULLY!* 🏴‍☠️')
+    } catch (e) {
+        await msg.reply(`❌ *Hijack Failed:* ${e.message}`)
     }
 })
 
-addCommand({
-    pattern: 'tagall',
-    desc: 'Tag all members with a list',
-    function: async (sock, message) => {
-        if (!message.isGroup) return await message.reply('This command is only for groups.')
-        if (!(await isAdmin(sock, message.chat, message.sender))) return await message.reply('You must be an admin to use this command.')
+// ── .clear ─────────────────────────────────────────────────
+bot({ pattern: 'clear ?(.*)', desc: 'delete whatsapp chat', type: 'utility' }, async (msg, match) => {
+    try {
+        await msg.clearChat(msg.jid)
+        await msg.reply('_Cleared_')
+    } catch (e) {
+        await msg.reply(`❌ *Failed:* ${e.message}`)
+    }
+})
+// ── .gpp (Group Profile Picture) ──────────────────────────
+bot({ pattern: 'gpp', desc: 'Change group profile picture', type: 'group', group: true, admin: true, botAdmin: true }, async (msg) => {
+    const m = msg.raw
+    const ctx = m.message?.extendedTextMessage?.contextInfo
+    const img = m.message?.imageMessage || ctx?.quotedMessage?.imageMessage
 
-        const groupMetadata = await sock.groupMetadata(message.chat)
-        const participants = groupMetadata.participants.map(p => p.id)
-        
-        let text = `📢 *Attention Everyone!* 📢\n\n`
-        if (message.args) text += `*Message:* ${message.args}\n\n`
-        
-        participants.forEach((mem, index) => {
-            text += `${index + 1}. @${mem.split('@')[0]}\n`
-        })
+    if (!img) return msg.reply('❌ *Reply to an image with .gpp to set it as group profile picture!*')
 
-        await sock.sendMessage(message.chat, {
-            text: text,
-            mentions: participants
+    try {
+        const messageObj = m.message?.imageMessage ? m.message : ctx.quotedMessage
+        const keyObj = m.message?.imageMessage ? m.key : { remoteJid: msg.jid, id: ctx?.stanzaId, participant: ctx?.participant }
+        
+        const buf = await downloadMediaMessage({ key: keyObj, message: messageObj }, 'buffer', {}, {
+            logger: { info: () => {}, error: () => {}, warn: () => {} },
+            reuploadRequest: msg.client.updateMediaMessage
         })
+        
+        await msg.client.updateProfilePicture(msg.jid, buf)
+        await msg.reply('✅ *Group profile picture updated!*')
+    } catch (e) {
+        await msg.reply(`❌ *Failed to update picture:* ${e.message}`)
+    }
+})
+
+// ── .gname (Group Name) ────────────────────────────────────
+bot({ pattern: 'gname ?(.*)', desc: 'Change group name', type: 'group', group: true, admin: true, botAdmin: true }, async (msg, match, args) => {
+    if (!args) return msg.reply('❌ *Provide a new group name!*\nExample: `.gname My New Group`')
+    try {
+        await msg.client.groupUpdateSubject(msg.jid, args)
+        await msg.reply(`✅ *Group name changed to:*\n${args}`)
+    } catch (e) {
+        await msg.reply(`❌ *Failed to change name:* ${e.message}`)
+    }
+})
+
+// ── .gdesc (Group Description) ─────────────────────────────
+bot({ pattern: 'gdesc ?(.*)', desc: 'Change group description', type: 'group', group: true, admin: true, botAdmin: true }, async (msg, match, args) => {
+    if (!args) return msg.reply('❌ *Provide a new group description!*\nExample: `.gdesc Welcome to the group!`')
+    try {
+        await msg.client.groupUpdateDescription(msg.jid, args)
+        await msg.reply(`✅ *Group description updated!*`)
+    } catch (e) {
+        await msg.reply(`❌ *Failed to change description:* ${e.message}`)
     }
 })

@@ -1,11 +1,18 @@
-require('dotenv').config()
+import dotenv from 'dotenv'
+import { createRequire } from 'module'
 
-module.exports = {
-    SESSION_ID: process.env.SESSION_ID || '',
-    PREFIX: process.env.PREFIX || '.',
-    OWNER_NUMBER: process.env.OWNER_NUMBER || '923216479192',
-    SUDO: process.env.SUDO || '',
-    PRIVATE_MODE: process.env.PRIVATE_MODE || 'true',
-    BOT_NAME: process.env.BOT_NAME || 'AHMED-MD',
-    OWNER_NAME: process.env.OWNER_NAME || 'Ahmed',
+dotenv.config({ path: './config.env' })
+
+const config = {
+    SESSION_ID:   process.env.SESSION_ID   || '',
+    PREFIX:       process.env.PREFIX       ?? '.',
+    OWNER_NUMBER: process.env.OWNER_NUMBER || '',
+    BOT_NAME:     process.env.BOT_NAME     || 'AHMED-MD',
+    MODE:         process.env.MODE         || 'private',
+    AUTO_READ:    process.env.AUTO_READ    === 'true',
+    AUTO_TYPING:  process.env.AUTO_TYPING  !== 'false',
+    ANTICALL:     process.env.ANTICALL     === 'true',
+    AUTOREACT:    process.env.AUTOREACT    || 'off',
 }
+
+export default config
