@@ -23,6 +23,9 @@ function getFfmpegDir() {
             const p = execSync('which ffmpeg', { encoding: 'utf8' }).trim()
             if (p) return p.replace(/\/[^\/]+$/, '')
         } catch {}
+        try {
+            execSync(`chmod +x "${ffmpegStaticPath}"`, { stdio: 'ignore' })
+        } catch {}
     }
     return ffmpegStaticPath.replace(/[/\\][^\/\\]+$/, '')
 }
@@ -49,7 +52,7 @@ async function ytInfo(url) {
 }
 
 async function ytDownload(url, type, outPath) {
-    const ffDir = FFMPEG.replace(/[/\\][^/\\]+$/, '') // parent dir of ffmpeg binary
+    const ffDir = FFMPEG
     const args = type === 'audio'
         ? ['-x', '--audio-format', 'mp3', '--audio-quality', '5',
            '--ffmpeg-location', ffDir,
@@ -251,7 +254,7 @@ bot({ pattern: 'play', desc: 'Search & play song (MP3)', type: 'download' }, asy
 
         await execFileAsync(YTDLP, [
             '-x', '--audio-format', 'mp3', '--audio-quality', '0',
-            '--ffmpeg-location', FFMPEG.replace(/[/\\][^/\\]+$/, ''),
+            '--ffmpeg-location', FFMPEG,
             '-o', out, '--no-playlist', '--no-warnings', ytUrl
         ], { timeout: 120000 })
 
@@ -305,7 +308,7 @@ bot({ pattern: 'song', desc: 'Search & download song (MP3)', type: 'download' },
 
         await execFileAsync(YTDLP, [
             '-x', '--audio-format', 'mp3', '--audio-quality', '0',
-            '--ffmpeg-location', FFMPEG.replace(/[/\\][^/\\]+$/, ''),
+            '--ffmpeg-location', FFMPEG,
             '-o', out, '--no-playlist', '--no-warnings', ytUrl
         ], { timeout: 120000 })
 

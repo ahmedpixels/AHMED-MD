@@ -22,6 +22,9 @@ function getFfmpegDir() {
             const p = execSync('which ffmpeg', { encoding: 'utf8' }).trim()
             if (p) return p.replace(/\/[^\/]+$/, '')
         } catch {}
+        try {
+            execSync(`chmod +x "${ffmpegStaticPath}"`, { stdio: 'ignore' })
+        } catch {}
     }
     return ffmpegStaticPath.replace(/[/\\][^/\\]+$/, '')
 }
