@@ -140,7 +140,6 @@ bot({ pattern: 'ytmp4', desc: 'Download YouTube MP4', type: 'download' }, async 
         const dur   = info.duration || 0
         if (dur > 120) return msg.reply('❌ *Max 2 minutes for video!*\n> Use .yt for longer audio')
 
-        // Robust 360p pre-merged or best small format selection (extremely fast)
         await execFileAsync(YTDLP, [
             '-f', '18/best[height<=360]/best[ext=mp4]/best',
             '-o', out,
@@ -148,11 +147,9 @@ bot({ pattern: 'ytmp4', desc: 'Download YouTube MP4', type: 'download' }, async 
         ], { timeout: 120000 })
 
         if (!existsSync(out)) return msg.reply('❌ *Download failed!*')
-
         const buf = readFileSync(out)
         unlinkSync(out)
 
-        // WhatsApp 16MB limit check
         if (buf.length > 15 * 1024 * 1024) {
             return msg.reply(`❌ *File too large (${(buf.length/1024/1024).toFixed(1)}MB)!*\n> WhatsApp max 16MB. Use .yt for audio.`)
         }
@@ -169,23 +166,19 @@ bot({ pattern: 'ytmp4', desc: 'Download YouTube MP4', type: 'download' }, async 
     }
 })
 
-
 // ── .ytsearch ──────────────────────────────────────────────
 bot({ pattern: 'ytsearch', desc: 'Search YouTube', type: 'download' }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Usage:* `.ytsearch song name`')
     try {
-        const { stdout } = await execFileAsync(YTDLP, [
-            `ytsearch5:${args}`, '--dump-json', '--no-playlist',
-            '--flat-playlist', '--no-warnings'
-        ], { timeout: 20000 })
-
-        const lines = stdout.trim().split('\n').filter(Boolean)
-        if (!lines.length) return msg.reply('❌ *No results!*')
+        const playdl = (await import('play-dl')).default
+        const results = await playdl.search(args, { limit: 5, source: { youtube: 'video' } })
+        if (!results?.length) return msg.reply('❌ *No results!*')
 
         let text = `🔍 *Results: ${args}*\n\n`
-        lines.forEach((line, i) => {
-            const v = JSON.parse(line)
-            const dur = v.duration ? `${Math.floor(v.duration/60)}:${String(v.duration%60).padStart(2,'0')}` : '?'
+        results.forEach((v, i) => {
+            const dur = v.durationInSec
+                ? `${Math.floor(v.durationInSec/60)}:${String(v.durationInSec%60).padStart(2,'0')}`
+                : '?'
             text += `*${i+1}.* ${v.title}\n   ⏱️ ${dur} | 🔗 https://youtu.be/${v.id}\n\n`
         })
         await msg.reply(text)
@@ -210,27 +203,44 @@ function formatDuration(sec) {
     return `${m}:${s < 10 ? '0' : ''}${s}`
 }
 
-// ── Helper: Search top result ──────────────────────────────
-async function searchTop(query) {
-    const { stdout } = await execFileAsync(YTDLP, [
-        `ytsearch1:${query}`, '--dump-json',
-        '--no-playlist', '--no-warnings'
-    ], { timeout: 20000 })
-    const lines = stdout.trim().split('\n').filter(Boolean)
-    if (!lines.length) throw new Error('No results found')
-    return JSON.parse(lines[0]) // { id, title, duration, view_count, channel, uploader }
+// ── Helper: Search YouTube via play-dl (bypasses VPS bot-block) ──
+async function searchYT(query) {
+    const playdl = (await import('play-dl')).default
+    const results = await playdl.search(query, { limit: 1, source: { youtube: 'video' } })
+    if (!results?.length) throw new Error('No results found')
+    const v = results[0]
+    return {
+        id: v.id,
+        title: v.title,
+        duration: v.durationInSec,
+        view_count: v.views,
+        channel: v.channel?.name,
+        uploader: v.channel?.name
+    }
 }
 
-// ── .play (yt-dlp - MP3 Audio) ─────────────────────────────
-bot({ pattern: 'play', desc: 'Search & play song (MP3)', type: 'download' }, async (msg, match, args) => {
+// ── Helper: Download audio via play-dl stream, save to file ──
+async function downloadAudioPlayDl(ytUrl, outPath) {
+    const playdl = (await import('play-dl')).default
+    const { createWriteStream } = await import('fs')
+    const stream = await playdl.stream(ytUrl, { quality: 2 })
+    return new Promise((resolve, reject) => {
+        const file = createWriteStream(outPath)
+        stream.stream.pipe(file)
+        file.on('finish', resolve)
+        file.on('error', reject)
+        stream.stream.on('error', reject)
+    })
+}
+
+// ── .play (play-dl - bypasses VPS bot block) ───────────────
+bot({ pattern: 'play', desc: 'Search & play song', type: 'download' }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Usage:* `.play song name`\nExample: `.play tere bina`')
 
-    const out = `./play_${Date.now()}.mp3`
+    const out = `./play_${Date.now()}.webm`
     try {
-        const top = await searchTop(args)
-        const videoId = top.id || top.url?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/)?.[1] || top.webpage_url?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/)?.[1]
-        if (!videoId) return msg.reply('❌ *Could not resolve video ID!*')
-        const ytUrl = `https://www.youtube.com/watch?v=${videoId}`
+        const top = await searchYT(args)
+        const ytUrl = `https://www.youtube.com/watch?v=${top.id}`
         const title = (top.title || args).slice(0, 80)
         const dur = top.duration || 0
         if (dur > 600) return msg.reply('❌ *Song too long! Max 10 minutes.*')
@@ -248,26 +258,19 @@ bot({ pattern: 'play', desc: 'Search & play song (MP3)', type: 'download' }, asy
                         `🎧 *Use headphones for a better experience!*\n\n` +
                         `> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
 
-        // Send first message with thumbnail & details
         await msg.client.sendMessage(msg.jid, {
-            image: { url: thumbUrl },
-            caption: caption
+            image: { url: thumbUrl }, caption
         }, { quoted: msg.raw })
 
-        await execFileAsync(YTDLP, [
-            '-x', '--audio-format', 'mp3', '--audio-quality', '0',
-            '--ffmpeg-location', FFMPEG,
-            '-o', out, '--no-playlist', '--no-warnings', ytUrl
-        ], { timeout: 120000 })
+        await downloadAudioPlayDl(ytUrl, out)
 
         if (!existsSync(out)) return msg.reply('❌ *Download failed!*')
         const buf = readFileSync(out)
         unlinkSync(out)
 
-        // Send as regular audio (ptt: false) instead of voice note
         await msg.client.sendMessage(msg.jid, {
-            audio: buf, mimetype: 'audio/mpeg',
-            fileName: `${title}.mp3`, ptt: false
+            audio: buf, mimetype: 'audio/webm',
+            fileName: `${title}.webm`, ptt: false
         }, { quoted: msg.raw })
 
     } catch (e) {
@@ -277,16 +280,14 @@ bot({ pattern: 'play', desc: 'Search & play song (MP3)', type: 'download' }, asy
     }
 })
 
-// ── .song (yt-dlp - MP3 Audio) ─────────────────────────────
-bot({ pattern: 'song', desc: 'Search & download song (MP3)', type: 'download' }, async (msg, match, args) => {
+// ── .song (play-dl - bypasses VPS bot block) ───────────────
+bot({ pattern: 'song', desc: 'Search & download song', type: 'download' }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Usage:* `.song song name`\nExample: `.song tere bina`')
 
-    const out = `./song_${Date.now()}.mp3`
+    const out = `./song_${Date.now()}.webm`
     try {
-        const top = await searchTop(args)
-        const videoId = top.id || top.url?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/)?.[1] || top.webpage_url?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/)?.[1]
-        if (!videoId) return msg.reply('❌ *Could not resolve video ID!*')
-        const ytUrl = `https://www.youtube.com/watch?v=${videoId}`
+        const top = await searchYT(args)
+        const ytUrl = `https://www.youtube.com/watch?v=${top.id}`
         const title = (top.title || args).slice(0, 80)
         const dur = top.duration || 0
         if (dur > 600) return msg.reply('❌ *Song too long! Max 10 minutes.*')
@@ -304,26 +305,19 @@ bot({ pattern: 'song', desc: 'Search & download song (MP3)', type: 'download' },
                         `🎧 *Use headphones for a better experience!*\n\n` +
                         `> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
 
-        // Send first message with thumbnail & details
         await msg.client.sendMessage(msg.jid, {
-            image: { url: thumbUrl },
-            caption: caption
+            image: { url: thumbUrl }, caption
         }, { quoted: msg.raw })
 
-        await execFileAsync(YTDLP, [
-            '-x', '--audio-format', 'mp3', '--audio-quality', '0',
-            '--ffmpeg-location', FFMPEG,
-            '-o', out, '--no-playlist', '--no-warnings', ytUrl
-        ], { timeout: 120000 })
+        await downloadAudioPlayDl(ytUrl, out)
 
         if (!existsSync(out)) return msg.reply('❌ *Download failed!*')
         const buf = readFileSync(out)
         unlinkSync(out)
 
-        // Send as regular audio (ptt: false)
         await msg.client.sendMessage(msg.jid, {
-            audio: buf, mimetype: 'audio/mpeg',
-            fileName: `${title}.mp3`, ptt: false
+            audio: buf, mimetype: 'audio/webm',
+            fileName: `${title}.webm`, ptt: false
         }, { quoted: msg.raw })
 
     } catch (e) {
@@ -333,17 +327,15 @@ bot({ pattern: 'song', desc: 'Search & download song (MP3)', type: 'download' },
     }
 })
 
-// ── .video (Video MP4) ─────────────────────────────────────
+// ── .video (play-dl search + yt-dlp download) ──────────────
 bot({ pattern: 'video', desc: 'Search & download video (MP4)', type: 'download' }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Usage:* `.video song name`\nExample: `.video tere bina`')
 
     await msg.reply(`🔍 *Searching:* ${args}...`)
     const out = `./video_${Date.now()}.mp4`
     try {
-        const top   = await searchTop(args)
-        const videoId = top.id || top.url?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/)?.[1] || top.webpage_url?.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/)?.[1]
-        if (!videoId) return msg.reply('❌ *Could not resolve video ID!*')
-        const ytUrl = `https://www.youtube.com/watch?v=${videoId}`
+        const top   = await searchYT(args)
+        const ytUrl = `https://www.youtube.com/watch?v=${top.id}`
         const title = (top.title || args).slice(0, 60)
         const dur   = top.duration || 0
 
