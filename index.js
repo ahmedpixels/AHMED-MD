@@ -57,6 +57,32 @@ async function getSession() {
     return false
 }
 
+// ── Auto-download yt-dlp on Linux if missing ──────────────────
+async function ensureYtdlp() {
+    if (process.platform === 'win32') return
+    const { execSync } = await import('child_process')
+    
+    // Check global
+    try {
+        execSync('which yt-dlp', { stdio: 'ignore' })
+        return
+    } catch {}
+
+    // Check local
+    if (fs.existsSync('./yt-dlp')) return
+
+    console.log('📥 Linux detected & yt-dlp is missing. Downloading automatically...')
+    try {
+        const ytdlpUrl = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp'
+        const res = await axios.get(ytdlpUrl, { responseType: 'arraybuffer', timeout: 60000 })
+        fs.writeFileSync('./yt-dlp', Buffer.from(res.data))
+        execSync('chmod +x ./yt-dlp')
+        console.log('✅ yt-dlp downloaded and execution permission granted!\n')
+    } catch (e) {
+        console.error('❌ Failed to auto-download yt-dlp:', e.message)
+    }
+}
+
 // ── Bot ────────────────────────────────────────────────────
 let pluginsLoaded = false
 
@@ -72,6 +98,7 @@ async function startBot() {
         console.log('║   AHMED-MD BOT LOADING   ║')
         console.log('╚══════════════════════════╝\n')
 
+        await ensureYtdlp()
         await loadPlugins()
         pluginsLoaded = true
     }

@@ -12,7 +12,7 @@
     "@distube/ytdl-core": "^4.16.12",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@sasmeee/igdl": "^0.0.1-security",
-    "@whiskeysockets/baileys": "7.0.0-rc10",
+    "@whiskeysockets/baileys": "^7.0.0-rc13",
     "axios": "^1.6.0",
     "btch-downloader": "^6.0.32",
     "dotenv": "^16.4.5",
