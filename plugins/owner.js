@@ -140,8 +140,8 @@ bot({ pattern: 'owner', desc: 'Show owner info', type: 'general' }, async (msg) 
     )
 })
 
-// ── .restart ──────────────────────────────────────────────
-import { spawn } from 'child_process'
+// ── .restart / .update ─────────────────────────────────────
+import { spawn, exec } from 'child_process'
 import { downloadMediaMessage } from '@whiskeysockets/baileys'
 
 bot({ pattern: 'restart', desc: 'Restart the bot', type: 'owner', owner: true }, async (msg) => {
@@ -155,6 +155,31 @@ bot({ pattern: 'restart', desc: 'Restart the bot', type: 'owner', owner: true },
         child.unref()
         process.exit(0)
     }, 1500)
+})
+
+bot({ pattern: 'update', desc: 'Pull latest code and update the bot', type: 'owner', owner: true }, async (msg) => {
+    await msg.reply('⏳ *Checking for updates and pulling code...*')
+    
+    exec('git pull', async (err, stdout, stderr) => {
+        if (err) {
+            return msg.reply(`❌ *Update failed:* ${err.message}`)
+        }
+        
+        if (stdout.includes('Already up to date.') || stdout.includes('Already up-to-date.')) {
+            return msg.reply('✅ *Bot is already up to date with the latest code!*')
+        }
+        
+        await msg.reply(`📥 *Updates Pulled Successfully!*\n\n\`\`\`\n${stdout.trim()}\n\`\`\`\n\n🔄 *Restarting bot to apply updates...*`)
+        
+        setTimeout(() => {
+            const child = spawn(process.argv[0], process.argv.slice(1), {
+                detached: true,
+                stdio: 'ignore'
+            })
+            child.unref()
+            process.exit(0)
+        }, 3000)
+    })
 })
 
 // ── .prefix ────────────────────────────────────────────────

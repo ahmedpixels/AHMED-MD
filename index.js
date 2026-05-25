@@ -279,6 +279,29 @@ async function startBot() {
                     console.error('Error sending startup message:', e)
                 }
             }
+
+            // Auto Update Checker on Startup
+            if (config.OWNER_NUMBER) {
+                setTimeout(async () => {
+                    try {
+                        const { exec } = await import('child_process')
+                        exec('git fetch && git log HEAD..origin/main --oneline', (err, stdout, stderr) => {
+                            if (!err && stdout.trim()) {
+                                const commits = stdout.trim().split('\n')
+                                const updMsg = `🔔 *AHMED-MD NEW UPDATE AVAILABLE!* 🔔\n\n` +
+                                                `We have pushed new updates to the repository. Please update your bot to avoid any issues.\n\n` +
+                                                `📝 *New Commits:*\n` +
+                                                `\`\`\`\n` +
+                                                commits.map(c => `• ${c}`).join('\n') +
+                                                `\n\`\`\`\n\n` +
+                                                `👉 Type *${config.PREFIX || '.'}update* on WhatsApp to pull updates and restart the bot automatically!`
+                                                
+                                client.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, { text: updMsg })
+                            }
+                        })
+                    } catch {}
+                }, 15000)
+            }
         }
     })
 
