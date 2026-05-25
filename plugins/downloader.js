@@ -5,7 +5,8 @@ import { existsSync, unlinkSync, readFileSync } from 'fs'
 import { resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
-import ffmpegPath from 'ffmpeg-static'
+import { execSync } from 'child_process'
+import ffmpegStaticPath from 'ffmpeg-static'
 
 const execFileAsync = promisify(execFile)
 const __dir = dirname(fileURLToPath(import.meta.url))
@@ -14,7 +15,18 @@ const YTDLP = process.platform === 'win32'
     : existsSync(resolve(__dir, '../yt-dlp'))
         ? resolve(__dir, '../yt-dlp')
         : 'yt-dlp'
-const FFMPEG = ffmpegPath
+
+// On Linux, prefer system ffmpeg; on Windows use ffmpeg-static
+function getFfmpegDir() {
+    if (process.platform !== 'win32') {
+        try {
+            const p = execSync('which ffmpeg', { encoding: 'utf8' }).trim()
+            if (p) return p.replace(/\/[^\/]+$/, '')
+        } catch {}
+    }
+    return ffmpegStaticPath.replace(/[/\\][^\/\\]+$/, '')
+}
+const FFMPEG = getFfmpegDir()
 
 // Convert any YT URL to clean watch URL
 function getYTUrl(str) {

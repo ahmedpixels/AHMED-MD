@@ -73,29 +73,48 @@ async function getSession() {
     return false
 }
 
-// ── Auto-download yt-dlp on Linux if missing ──────────────────
+// ── Auto-setup yt-dlp & ffmpeg on Linux ───────────────────────
 async function ensureYtdlp() {
     if (process.platform === 'win32') return
     const { execSync } = await import('child_process')
-    
-    // Check global
-    try {
-        execSync('which yt-dlp', { stdio: 'ignore' })
-        return
-    } catch {}
 
-    // Check local
-    if (fs.existsSync('./yt-dlp')) return
+    // ── 1. Ensure yt-dlp ──────────────────────────────────────
+    let ytdlpOk = false
+    try { execSync('which yt-dlp', { stdio: 'ignore' }); ytdlpOk = true } catch {}
+    if (!ytdlpOk && fs.existsSync('./yt-dlp')) ytdlpOk = true
 
-    console.log('📥 Linux detected & yt-dlp is missing. Downloading automatically...')
-    try {
-        const ytdlpUrl = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp'
-        const res = await axios.get(ytdlpUrl, { responseType: 'arraybuffer', timeout: 60000 })
-        fs.writeFileSync('./yt-dlp', Buffer.from(res.data))
-        execSync('chmod +x ./yt-dlp')
-        console.log('✅ yt-dlp downloaded and execution permission granted!\n')
-    } catch (e) {
-        console.error('❌ Failed to auto-download yt-dlp:', e.message)
+    if (!ytdlpOk) {
+        console.log('📥 Downloading yt-dlp for Linux...')
+        try {
+            const res = await axios.get(
+                'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp',
+                { responseType: 'arraybuffer', timeout: 60000 }
+            )
+            fs.writeFileSync('./yt-dlp', Buffer.from(res.data))
+            execSync('chmod +x ./yt-dlp')
+            console.log('✅ yt-dlp ready!\n')
+        } catch (e) {
+            console.error('❌ Failed to download yt-dlp:', e.message)
+        }
+    }
+
+    // ── 2. Ensure ffmpeg via apt (only if not installed) ──────
+    let ffmpegOk = false
+    try { execSync('which ffmpeg', { stdio: 'ignore' }); ffmpegOk = true } catch {}
+
+    if (!ffmpegOk) {
+        console.log('📥 Installing ffmpeg via apt (this may take ~30s)...')
+        try {
+            execSync('apt-get install -y ffmpeg', { stdio: 'pipe' })
+            console.log('✅ ffmpeg installed!\n')
+        } catch {
+            try {
+                execSync('sudo apt-get install -y ffmpeg', { stdio: 'pipe' })
+                console.log('✅ ffmpeg installed (sudo)!\n')
+            } catch (e2) {
+                console.error('❌ Could not install ffmpeg automatically:', e2.message)
+            }
+        }
     }
 }
 

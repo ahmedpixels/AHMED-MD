@@ -1,11 +1,11 @@
 import { bot } from '../lib/handler.js'
-import { execFile } from 'child_process'
+import { execFile, execSync } from 'child_process'
 import { promisify } from 'util'
 import { existsSync, unlinkSync, readFileSync } from 'fs'
 import { resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
-import ffmpegPath from 'ffmpeg-static'
+import ffmpegStaticPath from 'ffmpeg-static'
 import axios from 'axios'
 
 const execFileAsync = promisify(execFile)
@@ -15,7 +15,17 @@ const YTDLP = process.platform === 'win32'
     : existsSync(resolve(__dir, '../yt-dlp'))
         ? resolve(__dir, '../yt-dlp')
         : 'yt-dlp'
-const FFDIR = ffmpegPath.replace(/[/\\][^/\\]+$/, '')
+
+function getFfmpegDir() {
+    if (process.platform !== 'win32') {
+        try {
+            const p = execSync('which ffmpeg', { encoding: 'utf8' }).trim()
+            if (p) return p.replace(/\/[^\/]+$/, '')
+        } catch {}
+    }
+    return ffmpegStaticPath.replace(/[/\\][^/\\]+$/, '')
+}
+const FFDIR = getFfmpegDir()
 
 function extractUrl(str) {
     const m = str?.match(/https?:\/\/[^\s]+/)
