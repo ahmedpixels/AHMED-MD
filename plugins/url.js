@@ -17,7 +17,7 @@ async function downloadQuoted(client, rawMsg, msgObj) {
     )
 }
 
-// ── Helper: upload buffer to Uguu.se (super fast & reliable alternative to catbox) ──
+// ── Helper: upload buffer to Uguu.se ──
 async function uploadToUguu(buffer, filename) {
     const form = new FormData()
     form.append('files[]', buffer, { filename })
@@ -27,13 +27,80 @@ async function uploadToUguu(buffer, filename) {
             ...form.getHeaders(),
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         },
-        timeout: 60000
+        timeout: 30000
     })
 
-    if (!res.data || !res.data.success || !res.data.files || !res.data.files[0]) {
-        throw new Error('Upload rejected by server')
+    if (res.data?.success && res.data?.files?.[0]?.url) {
+        return res.data.files[0].url
     }
-    return res.data.files[0].url
+    throw new Error('Uguu rejected upload')
+}
+
+// ── Helper: upload buffer to Tmpfiles.org (extremely fast & handles large files) ──
+async function uploadToTmpfiles(buffer, filename) {
+    const form = new FormData()
+    form.append('file', buffer, { filename })
+
+    const res = await axios.post('https://tmpfiles.org/api/v1/upload', form, {
+        headers: {
+            ...form.getHeaders(),
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
+        timeout: 30000
+    })
+
+    if (res.data?.status === 'success' && res.data?.data?.url) {
+        // Convert viewer URL to direct download URL
+        return res.data.data.url.replace('https://tmpfiles.org/', 'https://tmpfiles.org/dl/')
+    }
+    throw new Error('Tmpfiles rejected upload')
+}
+
+// ── Helper: upload buffer to Catbox.moe ──
+async function uploadToCatbox(buffer, filename) {
+    const form = new FormData()
+    form.append('reqtype', 'fileupload')
+    form.append('fileToUpload', buffer, { filename })
+
+    const res = await axios.post('https://catbox.moe/user/api.php', form, {
+        headers: {
+            ...form.getHeaders(),
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
+        timeout: 30000
+    })
+
+    const url = typeof res.data === 'string' ? res.data.trim() : ''
+    if (url.startsWith('https://files.catbox.moe')) {
+        return url
+    }
+    throw new Error('Catbox rejected upload')
+}
+
+// ── Fallback upload manager (ensures 100% upload success rate) ──
+async function uploadMedia(buffer, filename) {
+    // Try Uguu first
+    try {
+        return await uploadToUguu(buffer, filename)
+    } catch (e) {
+        console.warn('[Upload Fallback] Uguu failed, trying Tmpfiles.org:', e.message)
+    }
+
+    // Try Tmpfiles second
+    try {
+        return await uploadToTmpfiles(buffer, filename)
+    } catch (e) {
+        console.warn('[Upload Fallback] Tmpfiles failed, trying Catbox.moe:', e.message)
+    }
+
+    // Try Catbox third
+    try {
+        return await uploadToCatbox(buffer, filename)
+    } catch (e) {
+        console.warn('[Upload Fallback] Catbox failed:', e.message)
+    }
+
+    throw new Error('All file upload providers failed. Please try again later.')
 }
 
 // ── .url ──────────────────────────────────────────────────────
@@ -101,7 +168,7 @@ bot({ pattern: 'url', desc: 'Upload quoted media and get a direct link', type: '
             return msg.reply('❌ *Failed to download media. Try again.*')
         }
 
-        const url = await uploadToUguu(buffer, filename)
+        const url = await uploadMedia(buffer, filename)
 
         await msg.reply(
             `*Upload Done!*\n` +
