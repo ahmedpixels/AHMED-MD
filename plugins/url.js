@@ -17,156 +17,67 @@ async function downloadQuoted(client, rawMsg, msgObj) {
     )
 }
 
-// ── Helper: upload buffer to Uguu.se ──
-async function uploadToUguu(buffer, filename) {
-    const form = new FormData()
-    form.append('files[]', buffer, { filename })
-
-    const length = form.getLengthSync()
-
-    const res = await axios.post('https://uguu.se/upload.php', form, {
-        headers: {
-            ...form.getHeaders(),
-            'Content-Length': length,
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        },
-        timeout: 30000
-    })
-
-    if (res.data?.success && res.data?.files?.[0]?.url) {
-        return res.data.files[0].url
-    }
-    throw new Error('Uguu rejected upload')
-}
-
-// ── Helper: upload buffer to Tmpfiles.org (extremely fast & handles large files) ──
-async function uploadToTmpfiles(buffer, filename) {
+// ── Helper: upload buffer to Telegra.ph (100% permanent for images/videos < 5MB) ──
+async function uploadToTelegraph(buffer, filename) {
     const form = new FormData()
     form.append('file', buffer, { filename })
 
-    const length = form.getLengthSync()
-
-    const res = await axios.post('https://tmpfiles.org/api/v1/upload', form, {
+    const res = await axios.post('https://telegra.ph/upload', form, {
         headers: {
-            ...form.getHeaders(),
-            'Content-Length': length,
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            ...form.getHeaders()
         },
         timeout: 30000
     })
 
-    if (res.data?.status === 'success' && res.data?.data?.url) {
-        // Convert viewer URL to direct download URL
-        return res.data.data.url.replace('https://tmpfiles.org/', 'https://tmpfiles.org/dl/')
+    if (res.data?.[0]?.src) {
+        return `https://telegra.ph${res.data[0].src}`
     }
-    throw new Error('Tmpfiles rejected upload')
+    throw new Error('Telegraph upload failed')
 }
 
-// ── Helper: upload buffer to Catbox.moe ──
-async function uploadToCatbox(buffer, filename) {
-    // 1. Try direct fileupload first
-    try {
-        const form = new FormData()
-        form.append('reqtype', 'fileupload')
-        form.append('fileToUpload', buffer, { filename })
+// ── Helper: upload buffer to Pixeldrain (essentially permanent, keeps 10,000 days since last view) ──
+async function uploadToPixeldrain(buffer, filename) {
+    const form = new FormData()
+    form.append('file', buffer, { filename })
 
-        const length = form.getLengthSync()
+    const res = await axios.post('https://pixeldrain.com/api/file', form, {
+        headers: {
+            ...form.getHeaders()
+        },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        timeout: 60000
+    })
 
-        const res = await axios.post('https://catbox.moe/user/api.php', form, {
-            headers: {
-                ...form.getHeaders(),
-                'Content-Length': length,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': '*/*',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Origin': 'https://catbox.moe',
-                'Referer': 'https://catbox.moe/',
-                'Connection': 'keep-alive'
-            },
-            timeout: 30000
-        })
-
-        const url = typeof res.data === 'string' ? res.data.trim() : ''
-        if (url.startsWith('https://files.catbox.moe')) {
-            return url
-        }
-    } catch (e) {
-        console.warn('[Catbox Direct Fail] Trying URL upload fallback...', e.message)
+    if (res.data?.success && res.data?.id) {
+        return `https://pixeldrain.com/api/file/${res.data.id}`
     }
-
-    // 2. If direct fileupload fails (e.g. 412 WAF block on VPS), try URL upload fallback!
-    try {
-        // Upload to Uguu.se first to get a temporary direct link (which works 100% of the time)
-        const tempUrl = await uploadToUguu(buffer, filename)
-        
-        // Post the temp link to Catbox via urlupload (Cloudflare does not block simple POST parameters!)
-        const form = new FormData()
-        form.append('reqtype', 'urlupload')
-        form.append('url', tempUrl)
-
-        const length = form.getLengthSync()
-
-        const res = await axios.post('https://catbox.moe/user/api.php', form, {
-            headers: {
-                ...form.getHeaders(),
-                'Content-Length': length,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': '*/*',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Origin': 'https://catbox.moe',
-                'Referer': 'https://catbox.moe/',
-                'Connection': 'keep-alive'
-            },
-            timeout: 30000
-        })
-
-        const url = typeof res.data === 'string' ? res.data.trim() : ''
-        if (url.startsWith('https://files.catbox.moe')) {
-            return url
-        }
-    } catch (e) {
-        console.warn('[Catbox URL Upload Fail]', e.message)
-    }
-
-    throw new Error('Catbox direct and URL upload both failed.')
+    throw new Error('Pixeldrain upload failed')
 }
 
-// ── Fallback upload manager (ensures 100% upload success rate) ──
-async function uploadMedia(buffer, filename) {
-    const errors = []
-    
-    // Try Catbox first (as requested by user for permanent links)
-    try {
-        const url = await uploadToCatbox(buffer, filename)
-        return { url, provider: 'Catbox', errors }
-    } catch (e) {
-        errors.push(`Catbox: ${e.message}`)
-        console.warn('[Upload Fallback] Catbox.moe failed, trying Uguu.se:', e.message)
+// ── Fallback upload manager (ensures 100% permanent uploads) ──
+async function uploadMedia(buffer, filename, mimetype) {
+    const isTelegraPhCompatible = mimetype && (mimetype.startsWith('image/') || mimetype.startsWith('video/')) && buffer.length < 5 * 1024 * 1024
+
+    if (isTelegraPhCompatible) {
+        try {
+            return await uploadToTelegraph(buffer, filename)
+        } catch (e) {
+            console.warn('[Upload Fallback] Telegraph failed, trying Pixeldrain:', e.message)
+        }
     }
 
-    // Try Uguu second
     try {
-        const url = await uploadToUguu(buffer, filename)
-        return { url, provider: 'Uguu.se', errors }
+        return await uploadToPixeldrain(buffer, filename)
     } catch (e) {
-        errors.push(`Uguu.se: ${e.message}`)
-        console.warn('[Upload Fallback] Uguu failed, trying Tmpfiles.org:', e.message)
+        console.warn('[Upload Fallback] Pixeldrain failed:', e.message)
     }
 
-    // Try Tmpfiles third
-    try {
-        const url = await uploadToTmpfiles(buffer, filename)
-        return { url, provider: 'Tmpfiles.org', errors }
-    } catch (e) {
-        errors.push(`Tmpfiles.org: ${e.message}`)
-        console.warn('[Upload Fallback] Tmpfiles failed:', e.message)
-    }
-
-    throw new Error(`All upload providers failed:\n` + errors.map(err => `• ${err}`).join('\n'))
+    throw new Error('All permanent upload hosters failed.')
 }
 
 // ── .url ──────────────────────────────────────────────────────
-bot({ pattern: 'url', desc: 'Upload quoted media and get a direct link', type: 'utility' }, async (msg) => {
+bot({ pattern: 'url', desc: 'Upload quoted media and get a direct permanent link', type: 'utility' }, async (msg) => {
     const m = msg.raw
     const ctx = m.message?.extendedTextMessage?.contextInfo
     const quoted = ctx?.quotedMessage
@@ -175,7 +86,7 @@ bot({ pattern: 'url', desc: 'Upload quoted media and get a direct link', type: '
         return msg.reply(
             `*Upload Media to Direct Link*\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `Reply to any media with *.url* to get a direct link.\n\n` +
+            `Reply to any media with *.url* to get a direct permanent link.\n\n` +
             `*Supported:*\n` +
             `• Image (jpg/png)\n` +
             `• Video (mp4)\n` +
@@ -197,60 +108,38 @@ bot({ pattern: 'url', desc: 'Upload quoted media and get a direct link', type: '
     }
 
     try {
-        let buffer, filename, mediaType
+        let buffer, filename
 
         if (img) {
             buffer = await downloadQuoted(msg.client, m, { imageMessage: img })
             const ext = (img.mimetype || 'image/jpeg').split('/')[1]?.split(';')[0] || 'jpg'
             filename = `image_${Date.now()}.${ext}`
-            mediaType = 'Image'
 
         } else if (vid) {
             buffer = await downloadQuoted(msg.client, m, { videoMessage: vid })
             filename = `video_${Date.now()}.mp4`
-            mediaType = 'Video'
 
         } else if (aud) {
             buffer = await downloadQuoted(msg.client, m, { audioMessage: aud })
             filename = aud.ptt ? `voice_${Date.now()}.ogg` : `audio_${Date.now()}.mp3`
-            mediaType = aud.ptt ? 'Voice Note' : 'Audio'
 
         } else if (stk) {
             buffer = await downloadQuoted(msg.client, m, { stickerMessage: stk })
             filename = `sticker_${Date.now()}.webp`
-            mediaType = 'Sticker'
 
         } else if (doc) {
             buffer = await downloadQuoted(msg.client, m, { documentMessage: doc })
             filename = doc.fileName || `file_${Date.now()}`
-            mediaType = 'Document'
         }
 
         if (!buffer || buffer.length === 0) {
             return msg.reply('❌ *Failed to download media. Try again.*')
         }
 
-        const { url, provider, errors } = await uploadMedia(buffer, filename)
+        const mimetype = img?.mimetype || vid?.mimetype || aud?.mimetype || stk?.mimetype || doc?.mimetype || ''
+        const url = await uploadMedia(buffer, filename, mimetype)
 
-        let diagnostics = ''
-        if (errors && errors.length > 0) {
-            diagnostics = `\n⚠️ *Fallback Diagnostics:*\n` + errors.map(err => `• ${err}`).join('\n') + `\n━━━━━━━━━━━━━━━━━━━━━\n`
-        }
-
-        await msg.reply(
-            `*Upload Done!*\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `*Type:* ${mediaType}\n` +
-            `*File:* ${filename}\n` +
-            `*Size:* ${(buffer.length / 1024).toFixed(1)} KB\n` +
-            `*Provider:* ${provider}\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `*Direct Link:*\n` +
-            `${url}\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            diagnostics +
-            `> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
-        )
+        await msg.reply(url)
 
     } catch (e) {
         console.error('[URL UPLOAD ERR]', e.message)
