@@ -79,28 +79,36 @@ async function uploadToCatbox(buffer, filename) {
 
 // ── Fallback upload manager (ensures 100% upload success rate) ──
 async function uploadMedia(buffer, filename) {
+    const errors = []
+    
     // Try Catbox first (as requested by user for permanent links)
     try {
-        return await uploadToCatbox(buffer, filename)
+        const url = await uploadToCatbox(buffer, filename)
+        return { url, provider: 'Catbox', errors }
     } catch (e) {
+        errors.push(`Catbox: ${e.message}`)
         console.warn('[Upload Fallback] Catbox.moe failed, trying Uguu.se:', e.message)
     }
 
     // Try Uguu second
     try {
-        return await uploadToUguu(buffer, filename)
+        const url = await uploadToUguu(buffer, filename)
+        return { url, provider: 'Uguu.se', errors }
     } catch (e) {
+        errors.push(`Uguu.se: ${e.message}`)
         console.warn('[Upload Fallback] Uguu failed, trying Tmpfiles.org:', e.message)
     }
 
     // Try Tmpfiles third
     try {
-        return await uploadToTmpfiles(buffer, filename)
+        const url = await uploadToTmpfiles(buffer, filename)
+        return { url, provider: 'Tmpfiles.org', errors }
     } catch (e) {
+        errors.push(`Tmpfiles.org: ${e.message}`)
         console.warn('[Upload Fallback] Tmpfiles failed:', e.message)
     }
 
-    throw new Error('All file upload providers failed. Please try again later.')
+    throw new Error(`All upload providers failed:\n` + errors.map(err => `• ${err}`).join('\n'))
 }
 
 // ── .url ──────────────────────────────────────────────────────
@@ -168,7 +176,12 @@ bot({ pattern: 'url', desc: 'Upload quoted media and get a direct link', type: '
             return msg.reply('❌ *Failed to download media. Try again.*')
         }
 
-        const url = await uploadMedia(buffer, filename)
+        const { url, provider, errors } = await uploadMedia(buffer, filename)
+
+        let diagnostics = ''
+        if (errors && errors.length > 0) {
+            diagnostics = `\n⚠️ *Fallback Diagnostics:*\n` + errors.map(err => `• ${err}`).join('\n') + `\n━━━━━━━━━━━━━━━━━━━━━\n`
+        }
 
         await msg.reply(
             `*Upload Done!*\n` +
@@ -176,10 +189,12 @@ bot({ pattern: 'url', desc: 'Upload quoted media and get a direct link', type: '
             `*Type:* ${mediaType}\n` +
             `*File:* ${filename}\n` +
             `*Size:* ${(buffer.length / 1024).toFixed(1)} KB\n` +
+            `*Provider:* ${provider}\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `*Direct Link:*\n` +
             `${url}\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
+            diagnostics +
             `> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
         )
 
