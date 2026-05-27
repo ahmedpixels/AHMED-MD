@@ -216,6 +216,35 @@ bot({ pattern: 'prefix ?(.*)', desc: 'Change bot prefix', type: 'owner', owner: 
     }
 })
 
+// ── .mode ──────────────────────────────────────────────────
+bot({ pattern: 'mode ?(.*)', desc: 'Change bot mode (public/private)', type: 'owner', owner: true }, async (msg, match, args) => {
+    let newMode = args?.trim().toLowerCase()
+    if (!newMode || (newMode !== 'public' && newMode !== 'private')) {
+        return msg.reply(`❌ *Usage:* \`${config.PREFIX || '.'}mode [public/private]\`\nExample: \`${config.PREFIX || '.'}mode public\``)
+    }
+
+    try {
+        // Update in-memory config
+        config.MODE = newMode
+
+        // Update persistent config.env file
+        const envPath = './config.env'
+        if (existsSync(envPath)) {
+            let envContent = readFileSync(envPath, 'utf8')
+            if (envContent.includes('MODE=')) {
+                envContent = envContent.replace(/MODE=.*/g, `MODE=${newMode}`)
+            } else {
+                envContent += `\nMODE=${newMode}`
+            }
+            writeFileSync(envPath, envContent, 'utf8')
+        }
+
+        await msg.reply(`✅ *Bot mode successfully changed to "${newMode}"!*`)
+    } catch (e) {
+        await msg.reply(`❌ *Failed to change mode:* ${e.message}`)
+    }
+})
+
 // ── .setpp — Change bot profile picture ───────────────────
 bot({ pattern: 'setpp', desc: 'Change bot profile picture (reply to image)', type: 'owner', owner: true }, async (msg) => {
     const m   = msg.raw

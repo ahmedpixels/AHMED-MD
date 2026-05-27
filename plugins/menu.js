@@ -105,6 +105,7 @@ const cmdRegistry = {
     statusreact: { category: 'owner', desc: 'Toggle auto-reactions to status updates', use: '.statusreact [on/off]', example: '.statusreact on' },
     statusview: { category: 'owner', desc: 'Toggle auto-viewing status updates', use: '.statusview [on/off]', example: '.statusview on' },
     unblock: { category: 'owner', desc: 'Unblock a user on WhatsApp', use: '.unblock [@tag/reply/number]', example: '.unblock @user' },
+    mode: { category: 'owner', desc: 'Change bot mode (public/private)', use: '.mode [public/private]', example: '.mode public' },
 
     // DOWNLOAD (7)
     play: { category: 'download', desc: 'Search and play song as voice note', use: '.play [song-name]', example: '.play stay kid laroi' },
@@ -187,7 +188,7 @@ const categories = [
     { key: 'general',    name: 'GENERAL',    icon: '🌟', cmds: ['alive', 'help', 'info', 'list', 'menu', 'owner', 'ping', 'speed'] },
     { key: 'group',      name: 'GROUP',      icon: '👥', cmds: ['add', 'alert', 'antiadmin', 'antilink', 'approval', 'del', 'demote', 'gdesc', 'gname', 'gpp', 'groupinfo', 'hidetag', 'invite', 'joinlink', 'kick', 'kickall', 'left', 'mute', 'promote', 'reject', 'resetwarn', 'revoke', 'tagall', 'unmute', 'warn', 'warnlimit', 'warns', 'welcome'] },
     { key: 'moderation', name: 'MODERATION', icon: '🛡️', cmds: ['addword', 'antiword', 'delword', 'listword'] },
-    { key: 'owner',      name: 'OWNER',      icon: '👑', cmds: ['antidelete', 'autoreact', 'block', 'broadcast', 'call', 'hijack', 'join', 'plugin', 'plugins', 'remove', 'restart', 'setpp', 'statusreact', 'statusview', 'unblock'] },
+    { key: 'owner',      name: 'OWNER',      icon: '👑', cmds: ['antidelete', 'autoreact', 'block', 'broadcast', 'call', 'hijack', 'join', 'mode', 'plugin', 'plugins', 'remove', 'restart', 'setpp', 'statusreact', 'statusview', 'unblock'] },
     { key: 'download',   name: 'DOWNLOAD',   icon: '📥', cmds: ['play', 'song', 'video', 'yt', 'ytmp3', 'ytmp4', 'ytsearch'] },
     { key: 'social',     name: 'SOCIAL',     icon: '🌐', cmds: ['dl', 'facebook', 'instagram', 'reddit', 'spotify', 'tiktok', 'twitter'] },
     { key: 'movies',     name: 'MOVIES',     icon: '🎬', cmds: ['movie', 'moviedl', 'series'] },
