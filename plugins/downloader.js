@@ -1,27 +1,7 @@
 import { bot } from '../lib/handler.js'
-import { existsSync, unlinkSync, readFileSync, createWriteStream } from 'fs'
 import yts from 'yt-search'
 import { youtube } from 'btch-downloader'
 import axios from 'axios'
-
-// Helper: Download URL to disk
-async function downloadFile(url, outPath) {
-    const writer = createWriteStream(outPath)
-    const response = await axios({
-        url,
-        method: 'GET',
-        responseType: 'stream',
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
-    })
-    response.data.pipe(writer)
-    return new Promise((resolve, reject) => {
-        writer.on('finish', resolve)
-        writer.on('error', reject)
-        response.data.on('error', reject)
-    })
-}
 
 // Convert any YT URL to clean watch URL
 function getYTUrl(str) {
@@ -67,64 +47,62 @@ async function searchYT(query) {
     }
 }
 
-// ── .yt / .ytmp3 ───────────────────────────────────────────
+// Helper: Fetch URL as buffer in memory (super fast, no disk write)
+async function fetchBuffer(url) {
+    const res = await axios.get(url, {
+        responseType: 'arraybuffer',
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+    })
+    return Buffer.from(res.data)
+}
+
+// ── .yt ────────────────────────────────────────────────────
 bot({ pattern: 'yt', desc: 'Download YouTube audio', type: 'download' }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Usage:* `.yt https://youtu.be/xxx`')
     const url = getYTUrl(args)
     if (!url) return msg.reply('❌ *Not a valid YouTube link!*')
 
     await msg.reply('⏳ *Downloading audio...*')
-    const out = `./yt_${Date.now()}.mp3`
     try {
         const res = await youtube(url)
         if (!res || !res.mp3) return msg.reply('❌ *Failed to get download link!*')
 
         const title = (res.title || 'Audio').slice(0, 60)
-
-        await downloadFile(res.mp3, out)
-        if (!existsSync(out)) return msg.reply('❌ *Download failed!*')
-
-        const buf = readFileSync(out)
-        unlinkSync(out)
+        const buf = await fetchBuffer(res.mp3)
 
         await msg.client.sendMessage(msg.jid, {
-            audio: buf, mimetype: 'audio/mpeg',
-            fileName: `${title}.mp3`, ptt: true
+            audio: buf, mimetype: 'audio/mp4',
+            fileName: `${title}.m4a`, ptt: true
         }, { quoted: msg.raw })
         await msg.reply(`✅ *${title}*`)
     } catch (e) {
-        if (existsSync(out)) unlinkSync(out)
         console.error('[YT ERR]', e.message)
         await msg.reply(`❌ *Failed:* ${e.message?.slice(0, 200)}`)
     }
 })
 
+// ── .ytmp3 ─────────────────────────────────────────────────
 bot({ pattern: 'ytmp3', desc: 'Download YouTube MP3', type: 'download' }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Usage:* `.ytmp3 https://youtu.be/xxx`')
     const url = getYTUrl(args)
     if (!url) return msg.reply('❌ *Not a valid YouTube link!*')
 
     await msg.reply('⏳ *Downloading audio...*')
-    const out = `./ytmp3_${Date.now()}.mp3`
     try {
         const res = await youtube(url)
         if (!res || !res.mp3) return msg.reply('❌ *Failed to get download link!*')
 
         const title = (res.title || 'Audio').slice(0, 60)
-
-        await downloadFile(res.mp3, out)
-        if (!existsSync(out)) return msg.reply('❌ *Download failed!*')
-
-        const buf = readFileSync(out)
-        unlinkSync(out)
+        const buf = await fetchBuffer(res.mp3)
 
         await msg.client.sendMessage(msg.jid, {
-            audio: buf, mimetype: 'audio/mpeg',
-            fileName: `${title}.mp3`, ptt: false
+            audio: buf, mimetype: 'audio/mp4',
+            fileName: `${title}.m4a`, ptt: false
         }, { quoted: msg.raw })
         await msg.reply(`✅ *${title}*`)
     } catch (e) {
-        if (existsSync(out)) unlinkSync(out)
         console.error('[YTMP3 ERR]', e.message)
         await msg.reply(`❌ *Failed:* ${e.message?.slice(0, 200)}`)
     }
@@ -137,18 +115,12 @@ bot({ pattern: 'ytmp4', desc: 'Download YouTube MP4', type: 'download' }, async 
     if (!url) return msg.reply('❌ *Not a valid YouTube link!*')
 
     await msg.reply('⏳ *Downloading video...*')
-    const out = `./ytmp4_${Date.now()}.mp4`
     try {
         const res = await youtube(url)
         if (!res || !res.mp4) return msg.reply('❌ *Failed to get download link!*')
 
         const title = (res.title || 'Video').slice(0, 60)
-
-        await downloadFile(res.mp4, out)
-        if (!existsSync(out)) return msg.reply('❌ *Download failed!*')
-
-        const buf = readFileSync(out)
-        unlinkSync(out)
+        const buf = await fetchBuffer(res.mp4)
 
         if (buf.length > 30 * 1024 * 1024) {
             return msg.reply(`❌ *File too large (${(buf.length/1024/1024).toFixed(1)}MB)!*\n> WhatsApp max limit is 30MB.`)
@@ -160,7 +132,6 @@ bot({ pattern: 'ytmp4', desc: 'Download YouTube MP4', type: 'download' }, async 
             caption: `🎬 *${title}*`
         }, { quoted: msg.raw })
     } catch (e) {
-        if (existsSync(out)) unlinkSync(out)
         console.error('[YTMP4 ERR]', e.message)
         await msg.reply(`❌ *Failed:* ${e.message?.slice(0, 200)}`)
     }
@@ -187,7 +158,6 @@ bot({ pattern: 'ytsearch', desc: 'Search YouTube', type: 'download' }, async (ms
 bot({ pattern: 'play', desc: 'Search & play song', type: 'download' }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Usage:* `.play song name`\nExample: `.play tere bina`')
 
-    const out = `./play_${Date.now()}.mp3`
     try {
         const top = await searchYT(args)
         const ytUrl = `https://www.youtube.com/watch?v=${top.id}`
@@ -202,8 +172,7 @@ bot({ pattern: 'play', desc: 'Search & play song', type: 'download' }, async (ms
         const caption = `🎵 *${title}*\n\n` +
                         `👤 *Channel:* ${channelStr}\n` +
                         `⏱️ *Duration:* ${durStr}\n` +
-                        `👁️ *Views:* ${viewsStr}\n` +
-                        `🔗 *Link:* ${ytUrl}\n\n` +
+                        `👁️ *Views:* ${viewsStr}\n\n` +
                         `🎧 *Use headphones for a better experience!*\n\n` +
                         `> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
 
@@ -214,19 +183,14 @@ bot({ pattern: 'play', desc: 'Search & play song', type: 'download' }, async (ms
         const res = await youtube(ytUrl)
         if (!res || !res.mp3) return msg.reply('❌ *Failed to get download link!*')
 
-        await downloadFile(res.mp3, out)
-
-        if (!existsSync(out)) return msg.reply('❌ *Download failed!*')
-        const buf = readFileSync(out)
-        unlinkSync(out)
+        const buf = await fetchBuffer(res.mp3)
 
         await msg.client.sendMessage(msg.jid, {
-            audio: buf, mimetype: 'audio/mpeg',
-            fileName: `${title}.mp3`, ptt: false
+            audio: buf, mimetype: 'audio/mp4',
+            fileName: `${title}.m4a`, ptt: false
         }, { quoted: msg.raw })
 
     } catch (e) {
-        if (existsSync(out)) unlinkSync(out)
         console.error('[PLAY ERR]', e.message)
         await msg.reply(`❌ *Failed:* ${e.message?.slice(0, 200)}`)
     }
@@ -236,7 +200,6 @@ bot({ pattern: 'play', desc: 'Search & play song', type: 'download' }, async (ms
 bot({ pattern: 'song', desc: 'Search & download song', type: 'download' }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Usage:* `.song song name`\nExample: `.song tere bina`')
 
-    const out = `./song_${Date.now()}.mp3`
     try {
         const top = await searchYT(args)
         const ytUrl = `https://www.youtube.com/watch?v=${top.id}`
@@ -251,8 +214,7 @@ bot({ pattern: 'song', desc: 'Search & download song', type: 'download' }, async
         const caption = `🎵 *${title}*\n\n` +
                         `👤 *Channel:* ${channelStr}\n` +
                         `⏱️ *Duration:* ${durStr}\n` +
-                        `👁️ *Views:* ${viewsStr}\n` +
-                        `🔗 *Link:* ${ytUrl}\n\n` +
+                        `👁️ *Views:* ${viewsStr}\n\n` +
                         `🎧 *Use headphones for a better experience!*\n\n` +
                         `> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
 
@@ -263,19 +225,14 @@ bot({ pattern: 'song', desc: 'Search & download song', type: 'download' }, async
         const res = await youtube(ytUrl)
         if (!res || !res.mp3) return msg.reply('❌ *Failed to get download link!*')
 
-        await downloadFile(res.mp3, out)
-
-        if (!existsSync(out)) return msg.reply('❌ *Download failed!*')
-        const buf = readFileSync(out)
-        unlinkSync(out)
+        const buf = await fetchBuffer(res.mp3)
 
         await msg.client.sendMessage(msg.jid, {
-            audio: buf, mimetype: 'audio/mpeg',
-            fileName: `${title}.mp3`, ptt: false
+            audio: buf, mimetype: 'audio/mp4',
+            fileName: `${title}.m4a`, ptt: false
         }, { quoted: msg.raw })
 
     } catch (e) {
-        if (existsSync(out)) unlinkSync(out)
         console.error('[SONG ERR]', e.message)
         await msg.reply(`❌ *Failed:* ${e.message?.slice(0, 200)}`)
     }
@@ -286,7 +243,6 @@ bot({ pattern: 'video', desc: 'Search & download video (MP4)', type: 'download' 
     if (!args) return msg.reply('❌ *Usage:* `.video song name`\nExample: `.video tere bina`')
 
     await msg.reply(`🔍 *Searching:* ${args}...`)
-    const out = `./video_${Date.now()}.mp4`
     try {
         const top   = await searchYT(args)
         const ytUrl = `https://www.youtube.com/watch?v=${top.id}`
@@ -297,11 +253,7 @@ bot({ pattern: 'video', desc: 'Search & download video (MP4)', type: 'download' 
         const res = await youtube(ytUrl)
         if (!res || !res.mp4) return msg.reply('❌ *Failed to get download link!*')
 
-        await downloadFile(res.mp4, out)
-
-        if (!existsSync(out)) return msg.reply('❌ *Download failed!*')
-        const buf = readFileSync(out)
-        unlinkSync(out)
+        const buf = await fetchBuffer(res.mp4)
 
         if (buf.length > 30 * 1024 * 1024) {
             return msg.reply(`❌ *File too large (${(buf.length/1024/1024).toFixed(1)}MB)!* WhatsApp limits apply.`)
@@ -313,7 +265,6 @@ bot({ pattern: 'video', desc: 'Search & download video (MP4)', type: 'download' 
             caption: `🎬 *${title}*`
         }, { quoted: msg.raw })
     } catch (e) {
-        if (existsSync(out)) unlinkSync(out)
         console.error('[VIDEO ERR]', e.message)
         await msg.reply(`❌ *Failed:* ${e.message?.slice(0, 200)}`)
     }
