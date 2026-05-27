@@ -62,10 +62,14 @@ async function uploadToTelegraph(buffer, filename) {
 
 // ── Main upload manager ──
 async function uploadMedia(buffer, filename, mimetype) {
+    let gofileError = '';
+    let telegraphError = '';
+
     // Try GoFile first — works 100% from any VPS, permanent links
     try {
         return await uploadToGofile(buffer, filename)
     } catch (e) {
+        gofileError = e.message;
         console.warn('[Upload] GoFile failed, trying Telegraph:', e.message)
     }
 
@@ -73,10 +77,11 @@ async function uploadMedia(buffer, filename, mimetype) {
     try {
         return await uploadToTelegraph(buffer, filename)
     } catch (e) {
+        telegraphError = e.message;
         console.warn('[Upload] Telegraph failed:', e.message)
     }
 
-    throw new Error('All upload providers failed.')
+    throw new Error(`All upload providers failed.\n• GoFile: ${gofileError}\n• Telegraph: ${telegraphError}`)
 }
 
 // ── .url ──────────────────────────────────────────────────────
