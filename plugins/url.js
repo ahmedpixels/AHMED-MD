@@ -22,9 +22,12 @@ async function uploadToUguu(buffer, filename) {
     const form = new FormData()
     form.append('files[]', buffer, { filename })
 
+    const length = form.getLengthSync()
+
     const res = await axios.post('https://uguu.se/upload.php', form, {
         headers: {
             ...form.getHeaders(),
+            'Content-Length': length,
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         },
         timeout: 30000
@@ -41,9 +44,12 @@ async function uploadToTmpfiles(buffer, filename) {
     const form = new FormData()
     form.append('file', buffer, { filename })
 
+    const length = form.getLengthSync()
+
     const res = await axios.post('https://tmpfiles.org/api/v1/upload', form, {
         headers: {
             ...form.getHeaders(),
+            'Content-Length': length,
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         },
         timeout: 30000
@@ -62,10 +68,18 @@ async function uploadToCatbox(buffer, filename) {
     form.append('reqtype', 'fileupload')
     form.append('fileToUpload', buffer, { filename })
 
+    const length = form.getLengthSync()
+
     const res = await axios.post('https://catbox.moe/user/api.php', form, {
         headers: {
             ...form.getHeaders(),
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'Content-Length': length,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Origin': 'https://catbox.moe',
+            'Referer': 'https://catbox.moe/',
+            'Connection': 'keep-alive'
         },
         timeout: 30000
     })
