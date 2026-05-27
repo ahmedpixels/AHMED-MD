@@ -166,19 +166,41 @@ bot({ pattern: 'update', desc: 'Pull latest code and update the bot', type: 'own
         }
         
         if (stdout.includes('Already up to date.') || stdout.includes('Already up-to-date.')) {
-            return msg.reply('✅ *Bot is already up to date with the latest code!*')
+            await msg.reply('ℹ️ *Bot is already up to date. Running npm install to ensure all package dependencies are verified...*')
+            exec('npm install', async (npmErr, npmStdout, npmStderr) => {
+                if (npmErr) {
+                    return msg.reply(`❌ *Dependency verification failed:* ${npmErr.message}`)
+                }
+                await msg.reply('✅ *All dependencies verified & installed! Restarting bot...*')
+                setTimeout(() => {
+                    const child = spawn(process.argv[0], process.argv.slice(1), {
+                        detached: true,
+                        stdio: 'ignore'
+                    })
+                    child.unref()
+                    process.exit(0)
+                }, 2000)
+            })
+            return
         }
         
-        await msg.reply(`📥 *Updates Pulled Successfully!*\n\n\`\`\`\n${stdout.trim()}\n\`\`\`\n\n🔄 *Restarting bot to apply updates...*`)
+        await msg.reply(`📥 *Updates Pulled Successfully!*\n\n\`\`\`\n${stdout.trim()}\n\`\`\`\n\n⏳ *Installing new dependencies (npm install)...*`)
         
-        setTimeout(() => {
-            const child = spawn(process.argv[0], process.argv.slice(1), {
-                detached: true,
-                stdio: 'ignore'
-            })
-            child.unref()
-            process.exit(0)
-        }, 3000)
+        exec('npm install', async (npmErr, npmStdout, npmStderr) => {
+            if (npmErr) {
+                await msg.reply(`⚠️ *npm install warning:* ${npmErr.message}\nContinuing to restart...`)
+            }
+            await msg.reply(`🔄 *Restarting bot to apply updates...*`)
+            
+            setTimeout(() => {
+                const child = spawn(process.argv[0], process.argv.slice(1), {
+                    detached: true,
+                    stdio: 'ignore'
+                })
+                child.unref()
+                process.exit(0)
+            }, 3000)
+        })
     })
 })
 
