@@ -1,13 +1,16 @@
 /**
- * AHMED-MD WhatsApp Bot - VPS Bootloader / Launcher
+ * AHMED-MD WhatsApp Bot - Pterodactyl/VPS Bootloader
  * 
- * Upload this single file to your VPS panel, configure your Session ID,
- * and start it. It will automatically clone/update the bot and run it.
+ * Instructions:
+ * 1. Upload this file to your panel.
+ * 2. Name it "index.js".
+ * 3. Change the SESSION_ID below to your actual session ID.
+ * 4. Click Start!
  */
 
-import { execSync, spawn } from 'child_process';
-import fs from 'fs';
-import path from 'path';
+const { execSync, spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 // ── CONFIGURATION ──────────────────────────────────────────
 const SESSION_ID = 'AHMED-MD-YOUR-SESSION-ID-HERE'; // Replace with your actual Session ID
