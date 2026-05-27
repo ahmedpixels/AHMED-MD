@@ -13,8 +13,8 @@ const config = {
     AUTO_TYPING:  process.env.AUTO_TYPING  !== 'false',
     ANTICALL:     process.env.ANTICALL     === 'true',
     AUTOREACT:    process.env.AUTOREACT    || 'off',
-    ALIVE_IMAGE:  process.env.ALIVE_IMAGE  || './online.jpg',
-    MENU_IMAGE:   process.env.MENU_IMAGE   || './online.jpg',
+    ALIVE_IMAGE:  process.env.ALIVE_IMAGE  || 'https://i.imgur.com/xl3SNpp.jpeg',
+    MENU_IMAGE:   process.env.MENU_IMAGE   || 'https://i.imgur.com/xl3SNpp.jpeg',
     HIJACK_IMAGE: process.env.HIJACK_IMAGE || './hijack.jpg',
 }
 

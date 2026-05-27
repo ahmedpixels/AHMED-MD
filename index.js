@@ -283,10 +283,19 @@ async function startBot() {
                         `🌐 *Pairing Website:* ahmedxmd.com\n\n` +
                         `> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
 
-                    if (fs.existsSync('./online.jpg')) {
-                        const onlineImg = fs.readFileSync('./online.jpg')
+                    let startupImg
+                    try {
+                        if (config.ALIVE_IMAGE && config.ALIVE_IMAGE.startsWith('http')) {
+                            const res = await axios.get(config.ALIVE_IMAGE, { responseType: 'arraybuffer', timeout: 15000 })
+                            startupImg = Buffer.from(res.data)
+                        } else if (config.ALIVE_IMAGE && fs.existsSync(config.ALIVE_IMAGE)) {
+                            startupImg = fs.readFileSync(config.ALIVE_IMAGE)
+                        }
+                    } catch {}
+
+                    if (startupImg) {
                         await client.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
-                            image: onlineImg,
+                            image: startupImg,
                             caption: caption
                         })
                     } else {
@@ -299,7 +308,7 @@ async function startBot() {
                 }
             }
 
-            // Auto Update Checker (runs on startup and every 6 hours)
+            // Auto Update Checker (runs on startup and every 30 minutes)
             if (config.OWNER_NUMBER) {
                 let lastNotifiedCommits = ''
                 const checkUpdates = async () => {
@@ -326,11 +335,11 @@ async function startBot() {
                     } catch {}
                 }
 
-                // Startup check (15 seconds after boot)
-                setTimeout(checkUpdates, 15000)
+                // Startup check (5 seconds after boot)
+                setTimeout(checkUpdates, 5000)
 
-                // Periodic check (every 6 hours)
-                setInterval(checkUpdates, 6 * 60 * 60 * 1000)
+                // Periodic check (every 30 minutes)
+                setInterval(checkUpdates, 30 * 60 * 1000)
             }
         }
     })
