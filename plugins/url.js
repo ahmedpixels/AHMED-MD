@@ -38,8 +38,8 @@ async function uploadToGofile(buffer, filename) {
 
     const fileData = uploadRes.data?.data
     if (uploadRes.data?.status === 'ok' && fileData?.downloadPage) {
-        // Return direct download link using file id
-        return `https://gofile.io/d/${fileData.parentFolder}`
+        // Return direct download link
+        return fileData.downloadPage
     }
     throw new Error('GoFile upload failed: ' + JSON.stringify(uploadRes.data))
 }
