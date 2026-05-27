@@ -310,7 +310,7 @@ bot({ pattern: 'menu ?(.*)', desc: 'Show bot menu categorized dashboard', type: 
     for (const cat of processedCategories) {
         menu += `┌───〔 *${cat.name.toUpperCase()}* 〕───\n`
         for (const cmd of cat.cmds) {
-            menu += `│ \`${prefix}${cmd}\`\n`
+            menu += `│ ${prefix}${cmd}\n`
         }
         menu += `└━━━━━━━━━━━━━━━━━━━━━━━━━━━┈\n\n`
     }
@@ -318,7 +318,7 @@ bot({ pattern: 'menu ?(.*)', desc: 'Show bot menu categorized dashboard', type: 
     if (customCmdList.length > 0) {
         menu += `┌───〔 *CUSTOM* 〕───\n`
         for (const cmd of customCmdList.sort()) {
-            menu += `│ \`${prefix}${cmd}\`\n`
+            menu += `│ ${prefix}${cmd}\n`
         }
         menu += `└━━━━━━━━━━━━━━━━━━━━━━━━━━━┈\n\n`
     }
