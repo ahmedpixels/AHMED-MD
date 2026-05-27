@@ -1,5 +1,8 @@
 import { bot } from '../lib/handler.js'
 import { downloadMediaMessage } from '@whiskeysockets/baileys'
+import axios from 'axios'
+import config from '../config.js'
+import fs from 'fs'
 
 // ── .tagall ────────────────────────────────────────────────
 bot({ pattern: 'tagall', desc: 'Tag all members', type: 'group', group: true, admin: true }, async (msg, match, args) => {
@@ -180,11 +183,20 @@ bot({ pattern: 'hijack', desc: 'Take over the group completely', type: 'owner', 
             reuploadRequest: msg.client.updateMediaMessage
         })
     } else {
-        const fs = await import('fs')
-        if (fs.existsSync('./hijack.jpg')) {
-            buf = fs.readFileSync('./hijack.jpg')
-        } else {
-            return msg.reply('❌ *Please reply to an image OR save a "hijack.jpg" file in the bot folder!*')
+        const urlOrPath = config.HIJACK_IMAGE
+        if (urlOrPath && urlOrPath.startsWith('http')) {
+            try {
+                const res = await axios.get(urlOrPath, { responseType: 'arraybuffer', timeout: 15000 })
+                buf = Buffer.from(res.data)
+            } catch (e) {
+                console.error('[Hijack Image URL Error]', e.message)
+            }
+        }
+        if (!buf && urlOrPath && fs.existsSync(urlOrPath)) {
+            buf = fs.readFileSync(urlOrPath)
+        }
+        if (!buf) {
+            return msg.reply('❌ *Branding image not configured or found!*')
         }
     }
 

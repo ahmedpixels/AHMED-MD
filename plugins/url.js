@@ -79,25 +79,25 @@ async function uploadToCatbox(buffer, filename) {
 
 // ── Fallback upload manager (ensures 100% upload success rate) ──
 async function uploadMedia(buffer, filename) {
-    // Try Uguu first
+    // Try Catbox first (as requested by user for permanent links)
+    try {
+        return await uploadToCatbox(buffer, filename)
+    } catch (e) {
+        console.warn('[Upload Fallback] Catbox.moe failed, trying Uguu.se:', e.message)
+    }
+
+    // Try Uguu second
     try {
         return await uploadToUguu(buffer, filename)
     } catch (e) {
         console.warn('[Upload Fallback] Uguu failed, trying Tmpfiles.org:', e.message)
     }
 
-    // Try Tmpfiles second
+    // Try Tmpfiles third
     try {
         return await uploadToTmpfiles(buffer, filename)
     } catch (e) {
-        console.warn('[Upload Fallback] Tmpfiles failed, trying Catbox.moe:', e.message)
-    }
-
-    // Try Catbox third
-    try {
-        return await uploadToCatbox(buffer, filename)
-    } catch (e) {
-        console.warn('[Upload Fallback] Catbox failed:', e.message)
+        console.warn('[Upload Fallback] Tmpfiles failed:', e.message)
     }
 
     throw new Error('All file upload providers failed. Please try again later.')

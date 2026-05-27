@@ -13,6 +13,9 @@ const config = {
     AUTO_TYPING:  process.env.AUTO_TYPING  !== 'false',
     ANTICALL:     process.env.ANTICALL     === 'true',
     AUTOREACT:    process.env.AUTOREACT    || 'off',
+    ALIVE_IMAGE:  process.env.ALIVE_IMAGE  || './online.jpg',
+    MENU_IMAGE:   process.env.MENU_IMAGE   || './online.jpg',
+    HIJACK_IMAGE: process.env.HIJACK_IMAGE || './hijack.jpg',
 }
 
 export default config

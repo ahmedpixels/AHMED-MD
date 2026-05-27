@@ -20,7 +20,10 @@ const EXCLUDE_LIST = [
   'package-lock.json',
   'yt-dlp.exe',
   'test_audio.webm',
-  'test_tiktok.mp4'
+  'test_tiktok.mp4',
+  'emix.png',
+  'hijack.jpg',
+  'online.jpg'
 ];
 
 // Obfuscation configuration for high security & Node.js compatibility

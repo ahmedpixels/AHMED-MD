@@ -226,18 +226,25 @@ function toSmallCaps(text) {
 }
 
 async function sendPremiumMenu(msg, text) {
-    const imagePath = './online.jpg'
-    if (fs.existsSync(imagePath)) {
-        try {
-            const buf = fs.readFileSync(imagePath)
+    try {
+        const urlOrPath = config.MENU_IMAGE
+        let buf
+        if (urlOrPath && urlOrPath.startsWith('http')) {
+            const res = await axios.get(urlOrPath, { responseType: 'arraybuffer', timeout: 15000 })
+            buf = Buffer.from(res.data)
+        } else if (urlOrPath && fs.existsSync(urlOrPath)) {
+            buf = fs.readFileSync(urlOrPath)
+        }
+
+        if (buf) {
             await msg.client.sendMessage(msg.jid, {
                 image: buf,
                 caption: text
             }, { quoted: msg.raw })
             return
-        } catch (e) {
-            console.error('[Menu Image Send Error]', e)
         }
+    } catch (e) {
+        console.error('[Menu Image Send Error]', e.message)
     }
     await msg.reply(text)
 }
