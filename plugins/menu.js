@@ -294,33 +294,33 @@ bot({ pattern: 'menu ?(.*)', desc: 'Show bot menu categorized dashboard', type: 
 
     totalActiveCmds += customCmdList.length
 
-    let menu = `╔══════════════════════════╗\n`
-    menu += `║     *AHMED-MD V2*        ║\n`
-    menu += `╚══════════════════════════╝\n\n`
+    let menu = `┏━━━━━━━━━━━━━━━━━━━━━━━━┓\n`
+    menu += `┃      ✨ 𝗔𝗛𝗠𝗘𝗗-𝗠𝗗 𝗩𝟮 ✨      ┃\n`
+    menu += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`
 
-    menu += `┌─━━━ • *INFO PANEL* • ━━━─┐\n`
-    menu += `*Developer:* AHMED\n`
-    menu += `*Prefix:* \` ${prefix} \`\n`
-    menu += `*Mode:* ${config.MODE || 'PRIVATE'}\n`
-    menu += `*Uptime:* ${uptimeStr}\n`
-    menu += `*Date:* ${dateStr}\n`
-    menu += `*Total Cmds:* ${totalActiveCmds}\n`
-    menu += `└━━━━━━━━━━━━━━━━━━━━━━━━━━┘\n\n`
+    menu += `┌─── ❖ *𝐒𝐘𝐒𝐓𝐄𝐌 𝐈𝐍𝐅𝐎* ❖ ───┐\n`
+    menu += `│ 👤 *Developer:* AHMED\n`
+    menu += `│ 📍 *Prefix:* \` ${prefix} \`\n`
+    menu += `│ ⚙️ *Mode:* ${config.MODE || 'PRIVATE'}\n`
+    menu += `│ ⏳ *Uptime:* ${uptimeStr}\n`
+    menu += `│ 📅 *Date:* ${dateStr}\n`
+    menu += `│ 📊 *Total Cmds:* ${totalActiveCmds}\n`
+    menu += `└━━━━━━━━━━━━━━━━━━━━━━━━┘\n\n`
 
     for (const cat of processedCategories) {
-        menu += `┌───〔 *${cat.name.toUpperCase()}* 〕───\n`
+        menu += `┌─── 💫 *${cat.icon} ${cat.name.toUpperCase()}* ───\n`
         for (const cmd of cat.cmds) {
-            menu += `│ \`${prefix}${cmd}\`\n`
+            menu += `│ ➜ \`${prefix}${cmd}\`\n`
         }
-        menu += `└━━━━━━━━━━━━━━━━━━━━━━━━━━━┈\n\n`
+        menu += `└━━━━━━━━━━━━━━━━━━━━━━━━┈ ❖\n\n`
     }
     
     if (customCmdList.length > 0) {
-        menu += `┌───〔 *CUSTOM* 〕───\n`
+        menu += `┌─── 💫 *🧩 CUSTOM* ───\n`
         for (const cmd of customCmdList.sort()) {
-            menu += `│ \`${prefix}${cmd}\`\n`
+            menu += `│ ➜ \`${prefix}${cmd}\`\n`
         }
-        menu += `└━━━━━━━━━━━━━━━━━━━━━━━━━━━┈\n\n`
+        menu += `└━━━━━━━━━━━━━━━━━━━━━━━━┈ ❖\n\n`
     }
 
     menu += `_Use \`${prefix}list\` for detailed usage info._\n\n`
@@ -400,11 +400,11 @@ bot({ pattern: 'list', desc: 'Show detailed command list with usages & examples'
     listText += `║   *DETAILED USAGE GUIDE*   ║\n`
     listText += `╚══════════════════════════╝\n\n`
 
-    listText += `┌─━━━ • *INFO PANEL* • ━━━─┐\n`
-    listText += `*Developer:* AHMED\n`
-    listText += `*Prefix:* ${prefix}\n`
-    listText += `*Total Cmds:* ${totalActiveCmds}\n`
-    listText += `└━━━━━━━━━━━━━━━━━━━━━━━━━━┘\n\n`
+    listText += `┌─── ❖ *𝐒𝐘𝐒𝐓𝐄𝐌 𝐈𝐍𝐅𝐎* ❖ ───┐\n`
+    listText += `│ 👤 *Developer:* AHMED\n`
+    listText += `│ 📍 *Prefix:* \` ${prefix} \`\n`
+    listText += `│ 📊 *Total Cmds:* ${totalActiveCmds}\n`
+    listText += `└━━━━━━━━━━━━━━━━━━━━━━━━┘\n\n`
 
     for (const cat of processedCategories) {
         listText += `*◈══〔 ${cat.name.toUpperCase()} 〕══◈*\n\n`
