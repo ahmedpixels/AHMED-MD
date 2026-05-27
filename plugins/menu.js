@@ -308,19 +308,19 @@ bot({ pattern: 'menu ?(.*)', desc: 'Show bot menu categorized dashboard', type: 
     menu += `└━━━━━━━━━━━━━━━━━━━━━━━━┘\n\n`
 
     for (const cat of processedCategories) {
-        menu += `┌─── 💫 *${cat.icon} ${cat.name.toUpperCase()}* ───\n`
+        menu += `┌───〔 *${cat.name.toUpperCase()}* 〕───\n`
         for (const cmd of cat.cmds) {
-            menu += `│ ➜ \`${prefix}${cmd}\`\n`
+            menu += `│ \`${prefix}${cmd}\`\n`
         }
-        menu += `└━━━━━━━━━━━━━━━━━━━━━━━━┈ ❖\n\n`
+        menu += `└━━━━━━━━━━━━━━━━━━━━━━━━━━━┈\n\n`
     }
     
     if (customCmdList.length > 0) {
-        menu += `┌─── 💫 *🧩 CUSTOM* ───\n`
+        menu += `┌───〔 *CUSTOM* 〕───\n`
         for (const cmd of customCmdList.sort()) {
-            menu += `│ ➜ \`${prefix}${cmd}\`\n`
+            menu += `│ \`${prefix}${cmd}\`\n`
         }
-        menu += `└━━━━━━━━━━━━━━━━━━━━━━━━┈ ❖\n\n`
+        menu += `└━━━━━━━━━━━━━━━━━━━━━━━━━━━┈\n\n`
     }
 
     menu += `_Use \`${prefix}list\` for detailed usage info._\n\n`
