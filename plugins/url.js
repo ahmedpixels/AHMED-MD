@@ -64,31 +64,71 @@ async function uploadToTmpfiles(buffer, filename) {
 
 // ── Helper: upload buffer to Catbox.moe ──
 async function uploadToCatbox(buffer, filename) {
-    const form = new FormData()
-    form.append('reqtype', 'fileupload')
-    form.append('fileToUpload', buffer, { filename })
+    // 1. Try direct fileupload first
+    try {
+        const form = new FormData()
+        form.append('reqtype', 'fileupload')
+        form.append('fileToUpload', buffer, { filename })
 
-    const length = form.getLengthSync()
+        const length = form.getLengthSync()
 
-    const res = await axios.post('https://catbox.moe/user/api.php', form, {
-        headers: {
-            ...form.getHeaders(),
-            'Content-Length': length,
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': '*/*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Origin': 'https://catbox.moe',
-            'Referer': 'https://catbox.moe/',
-            'Connection': 'keep-alive'
-        },
-        timeout: 30000
-    })
+        const res = await axios.post('https://catbox.moe/user/api.php', form, {
+            headers: {
+                ...form.getHeaders(),
+                'Content-Length': length,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Origin': 'https://catbox.moe',
+                'Referer': 'https://catbox.moe/',
+                'Connection': 'keep-alive'
+            },
+            timeout: 30000
+        })
 
-    const url = typeof res.data === 'string' ? res.data.trim() : ''
-    if (url.startsWith('https://files.catbox.moe')) {
-        return url
+        const url = typeof res.data === 'string' ? res.data.trim() : ''
+        if (url.startsWith('https://files.catbox.moe')) {
+            return url
+        }
+    } catch (e) {
+        console.warn('[Catbox Direct Fail] Trying URL upload fallback...', e.message)
     }
-    throw new Error('Catbox rejected upload')
+
+    // 2. If direct fileupload fails (e.g. 412 WAF block on VPS), try URL upload fallback!
+    try {
+        // Upload to Uguu.se first to get a temporary direct link (which works 100% of the time)
+        const tempUrl = await uploadToUguu(buffer, filename)
+        
+        // Post the temp link to Catbox via urlupload (Cloudflare does not block simple POST parameters!)
+        const form = new FormData()
+        form.append('reqtype', 'urlupload')
+        form.append('url', tempUrl)
+
+        const length = form.getLengthSync()
+
+        const res = await axios.post('https://catbox.moe/user/api.php', form, {
+            headers: {
+                ...form.getHeaders(),
+                'Content-Length': length,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Origin': 'https://catbox.moe',
+                'Referer': 'https://catbox.moe/',
+                'Connection': 'keep-alive'
+            },
+            timeout: 30000
+        })
+
+        const url = typeof res.data === 'string' ? res.data.trim() : ''
+        if (url.startsWith('https://files.catbox.moe')) {
+            return url
+        }
+    } catch (e) {
+        console.warn('[Catbox URL Upload Fail]', e.message)
+    }
+
+    throw new Error('Catbox direct and URL upload both failed.')
 }
 
 // ── Fallback upload manager (ensures 100% upload success rate) ──
