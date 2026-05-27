@@ -2,6 +2,12 @@ import { bot } from '../lib/handler.js'
 import yts from 'yt-search'
 import { youtube } from 'btch-downloader'
 import axios from 'axios'
+import ffmpegStatic from 'ffmpeg-static'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
+import { writeFileSync, existsSync, unlinkSync, readFileSync } from 'fs'
+
+const execFileAsync = promisify(execFile)
 
 // Convert any YT URL to clean watch URL
 function getYTUrl(str) {
@@ -58,6 +64,27 @@ async function fetchBuffer(url) {
     return Buffer.from(res.data)
 }
 
+// Helper: Convert downloaded audio buffer to standard compliant MP3
+async function convertToMp3(inputBuffer) {
+    const tmpIn = `./tmp_in_${Date.now()}.m4a`
+    const tmpOut = `./tmp_out_${Date.now()}.mp3`
+    try {
+        writeFileSync(tmpIn, inputBuffer)
+        await execFileAsync(ffmpegStatic, [
+            '-i', tmpIn,
+            '-acodec', 'libmp3lame',
+            '-b:a', '128k',
+            '-y', tmpOut
+        ], { timeout: 30000 })
+        if (!existsSync(tmpOut)) throw new Error('Audio conversion failed')
+        const buf = readFileSync(tmpOut)
+        return buf
+    } finally {
+        if (existsSync(tmpIn)) unlinkSync(tmpIn)
+        if (existsSync(tmpOut)) unlinkSync(tmpOut)
+    }
+}
+
 // ── .yt ────────────────────────────────────────────────────
 bot({ pattern: 'yt', desc: 'Download YouTube audio', type: 'download' }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Usage:* `.yt https://youtu.be/xxx`')
@@ -70,11 +97,12 @@ bot({ pattern: 'yt', desc: 'Download YouTube audio', type: 'download' }, async (
         if (!res || !res.mp3) return msg.reply('❌ *Failed to get download link!*')
 
         const title = (res.title || 'Audio').slice(0, 60)
-        const buf = await fetchBuffer(res.mp3)
+        const rawBuf = await fetchBuffer(res.mp3)
+        const mp3Buf = await convertToMp3(rawBuf)
 
         await msg.client.sendMessage(msg.jid, {
-            audio: buf, mimetype: 'audio/mp4',
-            fileName: `${title}.m4a`, ptt: true
+            audio: mp3Buf, mimetype: 'audio/mpeg',
+            fileName: `${title}.mp3`, ptt: true
         }, { quoted: msg.raw })
         await msg.reply(`✅ *${title}*`)
     } catch (e) {
@@ -95,11 +123,12 @@ bot({ pattern: 'ytmp3', desc: 'Download YouTube MP3', type: 'download' }, async 
         if (!res || !res.mp3) return msg.reply('❌ *Failed to get download link!*')
 
         const title = (res.title || 'Audio').slice(0, 60)
-        const buf = await fetchBuffer(res.mp3)
+        const rawBuf = await fetchBuffer(res.mp3)
+        const mp3Buf = await convertToMp3(rawBuf)
 
         await msg.client.sendMessage(msg.jid, {
-            audio: buf, mimetype: 'audio/mp4',
-            fileName: `${title}.m4a`, ptt: false
+            audio: mp3Buf, mimetype: 'audio/mpeg',
+            fileName: `${title}.mp3`, ptt: false
         }, { quoted: msg.raw })
         await msg.reply(`✅ *${title}*`)
     } catch (e) {
@@ -183,11 +212,12 @@ bot({ pattern: 'play', desc: 'Search & play song', type: 'download' }, async (ms
         const res = await youtube(ytUrl)
         if (!res || !res.mp3) return msg.reply('❌ *Failed to get download link!*')
 
-        const buf = await fetchBuffer(res.mp3)
+        const rawBuf = await fetchBuffer(res.mp3)
+        const mp3Buf = await convertToMp3(rawBuf)
 
         await msg.client.sendMessage(msg.jid, {
-            audio: buf, mimetype: 'audio/mp4',
-            fileName: `${title}.m4a`, ptt: false
+            audio: mp3Buf, mimetype: 'audio/mpeg',
+            fileName: `${title}.mp3`, ptt: false
         }, { quoted: msg.raw })
 
     } catch (e) {
@@ -225,11 +255,12 @@ bot({ pattern: 'song', desc: 'Search & download song', type: 'download' }, async
         const res = await youtube(ytUrl)
         if (!res || !res.mp3) return msg.reply('❌ *Failed to get download link!*')
 
-        const buf = await fetchBuffer(res.mp3)
+        const rawBuf = await fetchBuffer(res.mp3)
+        const mp3Buf = await convertToMp3(rawBuf)
 
         await msg.client.sendMessage(msg.jid, {
-            audio: buf, mimetype: 'audio/mp4',
-            fileName: `${title}.m4a`, ptt: false
+            audio: mp3Buf, mimetype: 'audio/mpeg',
+            fileName: `${title}.mp3`, ptt: false
         }, { quoted: msg.raw })
 
     } catch (e) {
