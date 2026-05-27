@@ -17,15 +17,40 @@ async function downloadQuoted(client, rawMsg, msgObj) {
     )
 }
 
-// ── Helper: upload buffer to Telegra.ph (100% permanent for images/videos < 5MB) ──
+// ── Helper: upload to GoFile.io (permanent, no Cloudflare, VPS friendly) ──
+async function uploadToGofile(buffer, filename) {
+    // Step 1: Get best available upload server
+    const serverRes = await axios.get('https://api.gofile.io/servers', { timeout: 10000 })
+    const servers = serverRes.data?.data?.servers
+    if (!servers || servers.length === 0) throw new Error('GoFile no servers available')
+    const server = servers[0].name
+
+    // Step 2: Upload file to that server
+    const form = new FormData()
+    form.append('file', buffer, { filename })
+
+    const uploadRes = await axios.post(`https://${server}.gofile.io/contents/uploadfile`, form, {
+        headers: { ...form.getHeaders() },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        timeout: 60000
+    })
+
+    const fileData = uploadRes.data?.data
+    if (uploadRes.data?.status === 'ok' && fileData?.downloadPage) {
+        // Return direct download link using file id
+        return `https://gofile.io/d/${fileData.parentFolder}`
+    }
+    throw new Error('GoFile upload failed: ' + JSON.stringify(uploadRes.data))
+}
+
+// ── Helper: upload to Telegraph (permanent for images < 5MB) ──
 async function uploadToTelegraph(buffer, filename) {
     const form = new FormData()
     form.append('file', buffer, { filename })
 
     const res = await axios.post('https://telegra.ph/upload', form, {
-        headers: {
-            ...form.getHeaders()
-        },
+        headers: { ...form.getHeaders() },
         timeout: 30000
     })
 
@@ -35,45 +60,23 @@ async function uploadToTelegraph(buffer, filename) {
     throw new Error('Telegraph upload failed')
 }
 
-// ── Helper: upload buffer to Pixeldrain (essentially permanent, keeps 10,000 days since last view) ──
-async function uploadToPixeldrain(buffer, filename) {
-    const form = new FormData()
-    form.append('file', buffer, { filename })
-
-    const res = await axios.post('https://pixeldrain.com/api/file', form, {
-        headers: {
-            ...form.getHeaders()
-        },
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
-        timeout: 60000
-    })
-
-    if (res.data?.success && res.data?.id) {
-        return `https://pixeldrain.com/api/file/${res.data.id}`
-    }
-    throw new Error('Pixeldrain upload failed')
-}
-
-// ── Fallback upload manager (ensures 100% permanent uploads) ──
+// ── Main upload manager ──
 async function uploadMedia(buffer, filename, mimetype) {
-    const isTelegraPhCompatible = mimetype && (mimetype.startsWith('image/') || mimetype.startsWith('video/')) && buffer.length < 5 * 1024 * 1024
-
-    if (isTelegraPhCompatible) {
-        try {
-            return await uploadToTelegraph(buffer, filename)
-        } catch (e) {
-            console.warn('[Upload Fallback] Telegraph failed, trying Pixeldrain:', e.message)
-        }
-    }
-
+    // Try GoFile first — works 100% from any VPS, permanent links
     try {
-        return await uploadToPixeldrain(buffer, filename)
+        return await uploadToGofile(buffer, filename)
     } catch (e) {
-        console.warn('[Upload Fallback] Pixeldrain failed:', e.message)
+        console.warn('[Upload] GoFile failed, trying Telegraph:', e.message)
     }
 
-    throw new Error('All permanent upload hosters failed.')
+    // Fallback: Telegraph (for small images only)
+    try {
+        return await uploadToTelegraph(buffer, filename)
+    } catch (e) {
+        console.warn('[Upload] Telegraph failed:', e.message)
+    }
+
+    throw new Error('All upload providers failed.')
 }
 
 // ── .url ──────────────────────────────────────────────────────
@@ -114,19 +117,15 @@ bot({ pattern: 'url', desc: 'Upload quoted media and get a direct permanent link
             buffer = await downloadQuoted(msg.client, m, { imageMessage: img })
             const ext = (img.mimetype || 'image/jpeg').split('/')[1]?.split(';')[0] || 'jpg'
             filename = `image_${Date.now()}.${ext}`
-
         } else if (vid) {
             buffer = await downloadQuoted(msg.client, m, { videoMessage: vid })
             filename = `video_${Date.now()}.mp4`
-
         } else if (aud) {
             buffer = await downloadQuoted(msg.client, m, { audioMessage: aud })
             filename = aud.ptt ? `voice_${Date.now()}.ogg` : `audio_${Date.now()}.mp3`
-
         } else if (stk) {
             buffer = await downloadQuoted(msg.client, m, { stickerMessage: stk })
             filename = `sticker_${Date.now()}.webp`
-
         } else if (doc) {
             buffer = await downloadQuoted(msg.client, m, { documentMessage: doc })
             filename = doc.fileName || `file_${Date.now()}`
