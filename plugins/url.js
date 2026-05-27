@@ -3,7 +3,7 @@ import { downloadMediaMessage } from '@whiskeysockets/baileys'
 import axios from 'axios'
 import FormData from 'form-data'
 
-// ── Helper: download media buffer (same pattern as sticker.js) ──
+// ── Helper: download media buffer ──
 async function downloadQuoted(client, rawMsg, msgObj) {
     const fakeMsg = { key: rawMsg.key, message: msgObj }
     return await downloadMediaMessage(
@@ -17,38 +17,34 @@ async function downloadQuoted(client, rawMsg, msgObj) {
     )
 }
 
-// ── Helper: upload buffer to catbox.moe ──────────────────────
-async function uploadToCatbox(buffer, filename) {
+// ── Helper: upload buffer to Uguu.se (super fast & reliable alternative to catbox) ──
+async function uploadToUguu(buffer, filename) {
     const form = new FormData()
-    form.append('reqtype', 'fileupload')
-    form.append('fileToUpload', buffer, { filename })
+    form.append('files[]', buffer, { filename })
 
-    const res = await axios.post('https://catbox.moe/user/api.php', form, {
+    const res = await axios.post('https://uguu.se/upload.php', form, {
         headers: {
             ...form.getHeaders(),
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         },
-        timeout: 120000,
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity
+        timeout: 60000
     })
 
-    const url = typeof res.data === 'string' ? res.data.trim() : ''
-    if (!url.startsWith('https://files.catbox.moe')) {
-        throw new Error('Catbox rejected the upload: ' + String(res.data).slice(0, 100))
+    if (!res.data || !res.data.success || !res.data.files || !res.data.files[0]) {
+        throw new Error('Upload rejected by server')
     }
-    return url
+    return res.data.files[0].url
 }
 
 // ── .url ──────────────────────────────────────────────────────
-bot({ pattern: 'url', desc: 'Upload quoted media to catbox.moe and get a direct link', type: 'utility' }, async (msg) => {
+bot({ pattern: 'url', desc: 'Upload quoted media and get a direct link', type: 'utility' }, async (msg) => {
     const m = msg.raw
     const ctx = m.message?.extendedTextMessage?.contextInfo
     const quoted = ctx?.quotedMessage
 
     if (!quoted) {
         return msg.reply(
-            `*Upload Media to Catbox*\n` +
+            `*Upload Media to Direct Link*\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `Reply to any media with *.url* to get a direct link.\n\n` +
             `*Supported:*\n` +
@@ -70,8 +66,6 @@ bot({ pattern: 'url', desc: 'Upload quoted media to catbox.moe and get a direct 
     if (!img && !vid && !aud && !stk && !doc) {
         return msg.reply('❌ *No supported media found!*\nReply to an image, video, audio, or sticker.')
     }
-
-    await msg.reply('⬆️ *Uploading to Catbox.moe...*')
 
     try {
         let buffer, filename, mediaType
@@ -107,10 +101,10 @@ bot({ pattern: 'url', desc: 'Upload quoted media to catbox.moe and get a direct 
             return msg.reply('❌ *Failed to download media. Try again.*')
         }
 
-        const url = await uploadToCatbox(buffer, filename)
+        const url = await uploadToUguu(buffer, filename)
 
         await msg.reply(
-            `*Catbox Upload Done!*\n` +
+            `*Upload Done!*\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `*Type:* ${mediaType}\n` +
             `*File:* ${filename}\n` +

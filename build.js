@@ -9,7 +9,6 @@ const __dirname = path.dirname(__filename);
 const SOURCE_DIR = __dirname;
 const TARGET_DIR = path.resolve(SOURCE_DIR, '../AHMED-MD-PUBLIC');
 
-// Files/folders to completely exclude from the public build
 const EXCLUDE_LIST = [
   '.git',
   'node_modules',
@@ -21,10 +20,7 @@ const EXCLUDE_LIST = [
   'package-lock.json',
   'yt-dlp.exe',
   'test_audio.webm',
-  'test_tiktok.mp4',
-  'emix.png',
-  'hijack.jpg',
-  'online.jpg'
+  'test_tiktok.mp4'
 ];
 
 // Obfuscation configuration for high security & Node.js compatibility

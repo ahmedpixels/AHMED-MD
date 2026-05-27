@@ -3,6 +3,7 @@ import config from '../config.js'
 import { createRequire } from 'module'
 import os from 'os'
 import axios from 'axios'
+import fs from 'fs'
 
 const startTime = Date.now()
 const uptime = () => {
@@ -17,12 +18,25 @@ bot({ pattern: 'ping', desc: 'Check bot speed', type: 'general' }, async (msg) =
 })
 
 bot({ pattern: 'alive', desc: 'Check if bot is alive', type: 'general' }, async (msg) => {
-    await msg.reply(
-        `╔══════════════════════╗\n║   *AHMED-MD ALIVE* ✅ ║\n╚══════════════════════╝\n\n` +
-        `🤖 *Bot:* ${config.BOT_NAME}\n⏱️ *Uptime:* ${uptime()}\n` +
-        `👑 *Owner:* ${config.OWNER_NUMBER}\n🔰 *Mode:* ${config.MODE}\n📌 *Prefix:* ${config.PREFIX||'None'}\n\n` +
-        `> _AHMED-MD is always here for you!_ 💫`
-    )
+    const text = `╔══════════════════════╗\n║   *AHMED-MD ALIVE* ✅ ║\n╚══════════════════════╝\n\n` +
+                 `🤖 *Bot:* ${config.BOT_NAME}\n⏱️ *Uptime:* ${uptime()}\n` +
+                 `👑 *Owner:* ${config.OWNER_NUMBER}\n🔰 *Mode:* ${config.MODE}\n📌 *Prefix:* ${config.PREFIX||'None'}\n\n` +
+                 `> _AHMED-MD is always here for you!_ 💫`
+    
+    const imagePath = './online.jpg'
+    if (fs.existsSync(imagePath)) {
+        try {
+            const buf = fs.readFileSync(imagePath)
+            await msg.client.sendMessage(msg.jid, {
+                image: buf,
+                caption: text
+            }, { quoted: msg.raw })
+            return
+        } catch (e) {
+            console.error('[Alive Image Send Error]', e)
+        }
+    }
+    await msg.reply(text)
 })
 
 bot({ pattern: 'info', desc: 'Bot information', type: 'general' }, async (msg) => {
