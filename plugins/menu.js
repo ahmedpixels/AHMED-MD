@@ -228,17 +228,15 @@ function toSmallCaps(text) {
 async function sendPremiumMenu(msg, text) {
     try {
         const urlOrPath = config.MENU_IMAGE
-        let buf
         if (urlOrPath && urlOrPath.startsWith('http')) {
-            const res = await axios.get(urlOrPath, { responseType: 'arraybuffer', timeout: 15000 })
-            buf = Buffer.from(res.data)
-        } else if (urlOrPath && fs.existsSync(urlOrPath)) {
-            buf = fs.readFileSync(urlOrPath)
-        }
-
-        if (buf) {
             await msg.client.sendMessage(msg.jid, {
-                image: buf,
+                image: { url: urlOrPath },
+                caption: text
+            }, { quoted: msg.raw })
+            return
+        } else if (urlOrPath && fs.existsSync(urlOrPath)) {
+            await msg.client.sendMessage(msg.jid, {
+                image: fs.readFileSync(urlOrPath),
                 caption: text
             }, { quoted: msg.raw })
             return
@@ -295,7 +293,7 @@ bot({ pattern: 'menu ?(.*)', desc: 'Show bot menu categorized dashboard', type: 
     totalActiveCmds += customCmdList.length
 
     let menu = `┏━━━━━━━━━━━━━━━━━━━━━━━━┓\n`
-    menu += `┃      ✨ 𝗔𝗛𝗠𝗘𝗗-𝗠𝗗 𝗩𝟮 ✨      ┃\n`
+    menu += `┃      ✨ 𝗔𝗛𝗠𝗘𝗗-𝗠𝗗 𝗩𝟭 ✨      ┃\n`
     menu += `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`
 
     menu += `┌─── ❖ *𝐒𝐘𝐒𝐓𝐄𝐌 𝐈𝐍𝐅𝐎* ❖ ───┐\n`

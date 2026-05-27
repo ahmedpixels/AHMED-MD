@@ -283,19 +283,14 @@ async function startBot() {
                         `🌐 *Pairing Website:* ahmedxmd.com\n\n` +
                         `> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
 
-                    let startupImg
-                    try {
-                        if (config.ALIVE_IMAGE && config.ALIVE_IMAGE.startsWith('http')) {
-                            const res = await axios.get(config.ALIVE_IMAGE, { responseType: 'arraybuffer', timeout: 15000 })
-                            startupImg = Buffer.from(res.data)
-                        } else if (config.ALIVE_IMAGE && fs.existsSync(config.ALIVE_IMAGE)) {
-                            startupImg = fs.readFileSync(config.ALIVE_IMAGE)
-                        }
-                    } catch {}
-
-                    if (startupImg) {
+                    if (config.ALIVE_IMAGE && config.ALIVE_IMAGE.startsWith('http')) {
                         await client.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
-                            image: startupImg,
+                            image: { url: config.ALIVE_IMAGE },
+                            caption: caption
+                        })
+                    } else if (config.ALIVE_IMAGE && fs.existsSync(config.ALIVE_IMAGE)) {
+                        await client.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
+                            image: fs.readFileSync(config.ALIVE_IMAGE),
                             caption: caption
                         })
                     } else {
@@ -320,14 +315,8 @@ async function startBot() {
                                 if (commitsStr === lastNotifiedCommits) return
                                 lastNotifiedCommits = commitsStr
 
-                                const commits = commitsStr.split('\n')
-                                const updMsg = `🔔 *AHMED-MD NEW UPDATE AVAILABLE!* 🔔\n\n` +
-                                                `We have pushed new updates to the repository. Please update your bot to avoid any issues.\n\n` +
-                                                `📝 *New Commits:*\n` +
-                                                `\`\`\`\n` +
-                                                commits.map(c => `• ${c}`).join('\n') +
-                                                `\n\`\`\`\n\n` +
-                                                `👉 Type *${config.PREFIX || '.'}update* on WhatsApp to pull updates and restart the bot automatically!`
+                                const updMsg = `🔔 *AHMED-MD Update Available!*\n` +
+                                               `👉 Type *${config.PREFIX || '.'}update* to install.`
                                                 
                                 client.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, { text: updMsg })
                             }

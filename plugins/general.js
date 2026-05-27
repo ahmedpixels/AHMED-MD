@@ -25,17 +25,15 @@ bot({ pattern: 'alive', desc: 'Check if bot is alive', type: 'general' }, async 
     
     try {
         const urlOrPath = config.ALIVE_IMAGE
-        let buf
         if (urlOrPath && urlOrPath.startsWith('http')) {
-            const res = await axios.get(urlOrPath, { responseType: 'arraybuffer', timeout: 15000 })
-            buf = Buffer.from(res.data)
-        } else if (urlOrPath && fs.existsSync(urlOrPath)) {
-            buf = fs.readFileSync(urlOrPath)
-        }
-
-        if (buf) {
             await msg.client.sendMessage(msg.jid, {
-                image: buf,
+                image: { url: urlOrPath },
+                caption: text
+            }, { quoted: msg.raw })
+            return
+        } else if (urlOrPath && fs.existsSync(urlOrPath)) {
+            await msg.client.sendMessage(msg.jid, {
+                image: fs.readFileSync(urlOrPath),
                 caption: text
             }, { quoted: msg.raw })
             return
