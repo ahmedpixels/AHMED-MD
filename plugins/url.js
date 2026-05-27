@@ -17,71 +17,149 @@ async function downloadQuoted(client, rawMsg, msgObj) {
     )
 }
 
-// ── Helper: upload to GoFile.io (permanent, no Cloudflare, VPS friendly) ──
-async function uploadToGofile(buffer, filename) {
-    // Step 1: Get best available upload server
-    const serverRes = await axios.get('https://api.gofile.io/servers', { timeout: 10000 })
-    const servers = serverRes.data?.data?.servers
-    if (!servers || servers.length === 0) throw new Error('GoFile no servers available')
-    const server = servers[0].name
-
-    // Step 2: Upload file to that server
+// ── Helper: upload buffer to Uguu.se (temporary direct link) ──
+async function uploadToUguu(buffer, filename) {
     const form = new FormData()
-    form.append('file', buffer, { filename })
+    form.append('files[]', buffer, { filename })
 
-    const uploadRes = await axios.post(`https://${server}.gofile.io/contents/uploadfile`, form, {
-        headers: { ...form.getHeaders() },
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
-        timeout: 60000
-    })
+    const length = form.getLengthSync()
 
-    const fileData = uploadRes.data?.data
-    if (uploadRes.data?.status === 'ok' && fileData?.downloadPage) {
-        // Return direct download link
-        return fileData.downloadPage
-    }
-    throw new Error('GoFile upload failed: ' + JSON.stringify(uploadRes.data))
-}
-
-// ── Helper: upload to Telegraph (permanent for images < 5MB) ──
-async function uploadToTelegraph(buffer, filename) {
-    const form = new FormData()
-    form.append('file', buffer, { filename })
-
-    const res = await axios.post('https://telegra.ph/upload', form, {
-        headers: { ...form.getHeaders() },
+    const res = await axios.post('https://uguu.se/upload.php', form, {
+        headers: {
+            ...form.getHeaders(),
+            'Content-Length': length,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
         timeout: 30000
     })
 
-    if (res.data?.[0]?.src) {
-        return `https://telegra.ph${res.data[0].src}`
+    if (res.data?.success && res.data?.files?.[0]?.url) {
+        return res.data.files[0].url
     }
-    throw new Error('Telegraph upload failed')
+    throw new Error('Uguu rejected upload')
+}
+
+// ── Helper: upload buffer to Tmpfiles.org (temporary direct link) ──
+async function uploadToTmpfiles(buffer, filename) {
+    const form = new FormData()
+    form.append('file', buffer, { filename })
+
+    const length = form.getLengthSync()
+
+    const res = await axios.post('https://tmpfiles.org/api/v1/upload', form, {
+        headers: {
+            ...form.getHeaders(),
+            'Content-Length': length,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
+        timeout: 30000
+    })
+
+    if (res.data?.status === 'success' && res.data?.data?.url) {
+        // Convert viewer URL to direct download URL
+        return res.data.data.url.replace('https://tmpfiles.org/', 'https://tmpfiles.org/dl/')
+    }
+    throw new Error('Tmpfiles rejected upload')
+}
+
+// ── Helper: upload buffer to Catbox (direct upload) ──
+async function uploadToCatboxDirect(buffer, filename) {
+    const form = new FormData()
+    form.append('reqtype', 'fileupload')
+    form.append('fileToUpload', buffer, { filename })
+
+    const length = form.getLengthSync()
+
+    const res = await axios.post('https://catbox.moe/user/api.php', form, {
+        headers: {
+            ...form.getHeaders(),
+            'Content-Length': length,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Origin': 'https://catbox.moe',
+            'Referer': 'https://catbox.moe/',
+            'Connection': 'keep-alive'
+        },
+        timeout: 30000
+    })
+
+    const url = typeof res.data === 'string' ? res.data.trim() : ''
+    if (url.startsWith('https://files.catbox.moe')) {
+        return url
+    }
+    throw new Error('Catbox direct upload rejected: ' + url)
+}
+
+// ── Helper: upload URL to Catbox (URL upload fallback) ──
+async function uploadToCatboxUrl(directUrl) {
+    const form = new FormData()
+    form.append('reqtype', 'urlupload')
+    form.append('url', directUrl)
+
+    const length = form.getLengthSync()
+
+    const res = await axios.post('https://catbox.moe/user/api.php', form, {
+        headers: {
+            ...form.getHeaders(),
+            'Content-Length': length,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Origin': 'https://catbox.moe',
+            'Referer': 'https://catbox.moe/',
+            'Connection': 'keep-alive'
+        },
+        timeout: 30000
+    })
+
+    const url = typeof res.data === 'string' ? res.data.trim() : ''
+    if (url.startsWith('https://files.catbox.moe')) {
+        return url
+    }
+    throw new Error('Catbox URL upload rejected: ' + url)
 }
 
 // ── Main upload manager ──
-async function uploadMedia(buffer, filename, mimetype) {
-    let gofileError = '';
-    let telegraphError = '';
-
-    // Try GoFile first — works 100% from any VPS, permanent links
+async function uploadMedia(buffer, filename) {
+    // 1. Try Catbox direct upload
     try {
-        return await uploadToGofile(buffer, filename)
+        return await uploadToCatboxDirect(buffer, filename)
     } catch (e) {
-        gofileError = e.message;
-        console.warn('[Upload] GoFile failed, trying Telegraph:', e.message)
+        console.warn('[Upload] Catbox direct failed, trying Catbox URL upload via Uguu:', e.message)
     }
 
-    // Fallback: Telegraph (for small images only)
+    // 2. Try Catbox URL upload via Uguu
+    let uguuUrl = null
     try {
-        return await uploadToTelegraph(buffer, filename)
+        uguuUrl = await uploadToUguu(buffer, filename)
+        return await uploadToCatboxUrl(uguuUrl)
     } catch (e) {
-        telegraphError = e.message;
-        console.warn('[Upload] Telegraph failed:', e.message)
+        console.warn('[Upload] Catbox URL upload via Uguu failed:', e.message)
     }
 
-    throw new Error(`All upload providers failed.\n• GoFile: ${gofileError}\n• Telegraph: ${telegraphError}`)
+    // 3. Try Catbox URL upload via Tmpfiles
+    let tmpUrl = null
+    try {
+        tmpUrl = await uploadToTmpfiles(buffer, filename)
+        return await uploadToCatboxUrl(tmpUrl)
+    } catch (e) {
+        console.warn('[Upload] Catbox URL upload via Tmpfiles failed:', e.message)
+    }
+
+    // 4. Fallbacks (in case Catbox is down, return working temporary links)
+    if (uguuUrl) return uguuUrl
+    if (tmpUrl) return tmpUrl
+
+    try {
+        return await uploadToUguu(buffer, filename)
+    } catch (e) {}
+
+    try {
+        return await uploadToTmpfiles(buffer, filename)
+    } catch (e) {}
+
+    throw new Error('All upload services failed.')
 }
 
 // ── .url ──────────────────────────────────────────────────────
@@ -140,9 +218,7 @@ bot({ pattern: 'url', desc: 'Upload quoted media and get a direct permanent link
             return msg.reply('❌ *Failed to download media. Try again.*')
         }
 
-        const mimetype = img?.mimetype || vid?.mimetype || aud?.mimetype || stk?.mimetype || doc?.mimetype || ''
-        const url = await uploadMedia(buffer, filename, mimetype)
-
+        const url = await uploadMedia(buffer, filename)
         await msg.reply(url)
 
     } catch (e) {
