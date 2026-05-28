@@ -138,7 +138,18 @@ async function startBot() {
         pluginsLoaded = true
     }
 
-    const { state, saveCreds } = await useMultiFileAuthState('./session')
+    let authState
+    if (config.MONGODB_URI) {
+        console.log('🔌 Connecting to MongoDB Atlas for session storage...')
+        const { useMongoAuthState } = await import('./lib/mongoAuthState.js')
+        const sessionId = config.SESSION_ID || 'main'
+        authState = await useMongoAuthState(config.MONGODB_URI, sessionId)
+        console.log('✅ Connected to MongoDB Atlas Auth State!')
+    } else {
+        const { useMultiFileAuthState } = await import('@whiskeysockets/baileys')
+        authState = await useMultiFileAuthState('./session')
+    }
+    const { state, saveCreds } = authState
     const { version }          = await fetchLatestBaileysVersion()
 
     const client = makeWASocket({

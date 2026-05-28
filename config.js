@@ -16,6 +16,7 @@ const config = {
     ALIVE_IMAGE:  process.env.ALIVE_IMAGE  || 'https://i.imgur.com/xl3SNpp.jpeg',
     MENU_IMAGE:   process.env.MENU_IMAGE   || 'https://i.imgur.com/xl3SNpp.jpeg',
     HIJACK_IMAGE: process.env.HIJACK_IMAGE || './hijack.jpg',
+    MONGODB_URI:  process.env.MONGODB_URI  || '',
 }
 
 export default config

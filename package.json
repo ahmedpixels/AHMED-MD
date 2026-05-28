@@ -31,7 +31,8 @@
     "snapsave-media-downloader": "^2.4.0",
     "unzipper": "^0.12.3",
     "yt-search": "^2.13.1",
-    "ytdl-core": "^4.11.5"
+    "ytdl-core": "^4.11.5",
+    "mongodb": "^6.3.0"
   },
   "devDependencies": {
     "javascript-obfuscator": "^5.4.3"
