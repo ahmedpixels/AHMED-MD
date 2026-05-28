@@ -1,7 +1,8 @@
 import { bot } from '../lib/handler.js';
 import axios from 'axios';
+import config from '../config.js';
 
-const PAIR_URL = process.env.PAIR_URL || 'http://localhost:3001';
+const PAIR_URL = config.PAIR_URL;
 
 bot({ 
   pattern: 'pair', 

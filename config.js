@@ -17,6 +17,7 @@ const config = {
     MENU_IMAGE:   process.env.MENU_IMAGE   || 'https://i.imgur.com/xl3SNpp.jpeg',
     HIJACK_IMAGE: process.env.HIJACK_IMAGE || './hijack.jpg',
     MONGODB_URI:  process.env.MONGODB_URI  || '',
+    PAIR_URL:     process.env.PAIR_URL     || 'https://pair-j2ft.onrender.com',
 }
 
 export default config
