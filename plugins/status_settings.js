@@ -54,3 +54,58 @@ bot({
         )
     }
 })
+
+bot({
+    pattern: 'typing ?(.*)',
+    desc: 'Toggle Auto Typing presence status (on/off)',
+    type: 'owner',
+    owner: true
+}, async (msg, match, args) => {
+    const status = args?.toLowerCase().trim()
+
+    if (status === 'on') {
+        db.data.settings.autotyping = true
+        db.save()
+        await msg.reply('✅ *Auto-Typing Enabled!*\n> Bot will now show "typing..." when executing commands.')
+    } else if (status === 'off') {
+        db.data.settings.autotyping = false
+        db.save()
+        await msg.reply('✅ *Auto-Typing Disabled!*\n> Bot will stop showing "typing..." status.')
+    } else {
+        const current = db.data.settings.autotyping ? '*ON*' : '*OFF*'
+        await msg.reply(
+            `✍️ *Auto-Typing Status:* ${current}\n\n` +
+            `*Usage:*\n` +
+            `.typing on  _(Show typing when running a command)_\n` +
+            `.typing off _(Disable)_`
+        )
+    }
+})
+
+bot({
+    pattern: 'recording ?(.*)',
+    desc: 'Toggle Auto Recording presence status (on/off)',
+    type: 'owner',
+    owner: true
+}, async (msg, match, args) => {
+    const status = args?.toLowerCase().trim()
+
+    if (status === 'on') {
+        db.data.settings.autorecording = true
+        db.save()
+        await msg.reply('✅ *Auto-Recording Enabled!*\n> Bot will now show "recording audio..." when executing commands.')
+    } else if (status === 'off') {
+        db.data.settings.autorecording = false
+        db.save()
+        await msg.reply('✅ *Auto-Recording Disabled!*\n> Bot will stop showing "recording audio..." status.')
+    } else {
+        const current = db.data.settings.autorecording ? '*ON*' : '*OFF*'
+        await msg.reply(
+            `🎙️ *Auto-Recording Status:* ${current}\n\n` +
+            `*Usage:*\n` +
+            `.recording on  _(Show recording audio when running a command)_\n` +
+            `.recording off _(Disable)_`
+        )
+    }
+})
+
