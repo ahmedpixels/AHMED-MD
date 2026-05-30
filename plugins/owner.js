@@ -160,6 +160,56 @@ bot({ pattern: 'restart', desc: 'Restart the bot', type: 'owner', owner: true },
 bot({ pattern: 'update', desc: 'Pull latest code and update the bot', type: 'owner', owner: true }, async (msg) => {
     await msg.reply('⏳ *Checking for updates...*')
     
+    const isHeroku = !!(process.env.DYNO || process.env.HEROKU_APP_NAME)
+    const hasGit = existsSync('.git')
+
+    if (isHeroku || !hasGit) {
+        await msg.reply('☁️ *Heroku / Cloud environment detected.* \n> Attempting remote redeploy of your application server...')
+        
+        // Case 1: Manual deployment with owner-configured API key
+        if (process.env.HEROKU_API_KEY && process.env.HEROKU_APP_NAME) {
+            try {
+                const axios = (await import('axios')).default
+                const headers = {
+                    'Accept': 'application/vnd.heroku+json; version=3',
+                    'Authorization': `Bearer ${process.env.HEROKU_API_KEY}`,
+                    'Content-Type': 'application/json'
+                }
+                await axios.post(`https://api.heroku.com/apps/${process.env.HEROKU_APP_NAME}/builds`, {
+                    source_blob: {
+                        url: 'https://github.com/ahmedpixels/AHMED-MD/tarball/main',
+                        version: 'v1.0.0'
+                    }
+                }, { headers })
+
+                return await msg.reply('✅ *Heroku update triggered successfully!*\n> Bot is rebuilding and will restart online in 2 minutes.')
+            } catch (e) {
+                return await msg.reply(`❌ *Heroku Update failed:* ${e.response?.data?.message || e.message}`)
+            }
+        }
+
+        // Case 2: Hosted bot (asks pairing server to deploy using its Session ID)
+        try {
+            const axios = (await import('axios')).default
+            const pairUrl = config.PAIR_URL || 'https://pair-j2ft.onrender.com'
+            const res = await axios.post(`${pairUrl}/api/hosted/redeploy`, {
+                sessionId: config.SESSION_ID
+            }, { timeout: 15000 })
+
+            if (res.data && res.data.success) {
+                return await msg.reply('✅ *Hosted Bot update triggered successfully!*\n> Rebuilding on Heroku server. Bot will restart online in 2 minutes.')
+            } else {
+                return await msg.reply(`❌ *Update failed:* ${res.data?.error || 'Unknown server error.'}`)
+            }
+        } catch (e) {
+            return await msg.reply(
+                `❌ *Update failed:* ${e.response?.data?.error || e.message}\n\n` +
+                `*Note:* If you deployed manually on Heroku, please configure \`HEROKU_API_KEY\` and \`HEROKU_APP_NAME\` in Heroku Config Vars to update via command.`
+            )
+        }
+    }
+
+    // VPS / Local git-based update
     exec('git pull', async (err, stdout, stderr) => {
         if (err) {
             return msg.reply(`❌ *Update failed:* ${err.message}`)
