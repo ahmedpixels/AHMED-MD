@@ -121,6 +121,57 @@ async function ensureYtdlp() {
 // ── Bot ────────────────────────────────────────────────────
 let pluginsLoaded = false
 
+// ── Session Syncing (Back to Pairing DB for VPS-grade 24/7 durability) ─────
+async function syncSessionBack() {
+    if (!config.SESSION_ID) return
+    try {
+        const { default: archiver } = await import('archiver')
+        const sessionDir = './session'
+        if (!fs.existsSync(sessionDir) || !fs.existsSync(`${sessionDir}/creds.json`)) return
+
+        const archive = archiver('zip', { zlib: { level: 9 } })
+        const chunks = []
+        archive.on('data', chunk => chunks.push(chunk))
+
+        const zipBuffer = await new Promise((resolve, reject) => {
+            archive.on('end', () => resolve(Buffer.concat(chunks)))
+            archive.on('error', err => reject(err))
+            archive.directory(sessionDir, false)
+            archive.finalize()
+        })
+
+        const base64Data = zipBuffer.toString('base64')
+        const urls = [
+            `https://ahmedxmd.com/api/session/update`,
+            `https://pair-j2ft.onrender.com/api/session/update`
+        ]
+
+        for (const url of urls) {
+            try {
+                await axios.post(url, {
+                    sessionId: config.SESSION_ID,
+                    zipBase64: base64Data
+                }, { timeout: 15000 })
+                console.log('📤 [Session Sync] Session uploaded successfully to pairing server.')
+                break
+            } catch (err) {
+                // Try next
+            }
+        }
+    } catch (e) {
+        console.error('[Session Sync Error]', e.message)
+    }
+}
+
+let syncTimeout = null
+function queueSessionSync() {
+    if (syncTimeout) return
+    syncTimeout = setTimeout(async () => {
+        await syncSessionBack()
+        syncTimeout = null
+    }, 60000)
+}
+
 async function startBot() {
     if (!pluginsLoaded) {
         const ok = await getSession()
@@ -150,7 +201,18 @@ async function startBot() {
         authState = await useMultiFileAuthState('./session')
     }
     const { state, saveCreds } = authState
-    const { version }          = await fetchLatestBaileysVersion()
+    
+    // Mini-bot lightning fast connection: bypass blocking Baileys version fetch with a 2s race and stable modern fallback
+    let version = [2, 3000, 1015694821]
+    try {
+        const fetchedVersion = await Promise.race([
+            fetchLatestBaileysVersion(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
+        ]).catch(() => null)
+        if (fetchedVersion && fetchedVersion.version) {
+            version = fetchedVersion.version
+        }
+    } catch {}
 
     const client = makeWASocket({
         version,
@@ -172,12 +234,27 @@ async function startBot() {
         }
     })
 
+
     // ── Connection Events ──────────────────────────────────
     client.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
         if (connection === 'close') {
             const code = lastDisconnect?.error?.output?.statusCode
             if (code === DisconnectReason.loggedOut) {
-                console.log('\n🔴 Logged out! Clearing session...\n')
+                console.log('\n🔴 Logged out! Clearing session and notifying cleanup...\n')
+                
+                // Call pairing backend to clean up Heroku app
+                try {
+                    const logoutUrls = [
+                        `https://ahmedxmd.com/api/hosted/logout`,
+                        `https://pair-j2ft.onrender.com/api/hosted/logout`
+                    ]
+                    for (const url of logoutUrls) {
+                        await axios.post(url, { sessionId: config.SESSION_ID }).catch(() => {})
+                    }
+                } catch (e) {
+                    console.error('Failed to notify pairing server of logout:', e.message)
+                }
+
                 fs.emptyDirSync('./session')
                 process.exit(0)
             } else {
@@ -188,6 +265,12 @@ async function startBot() {
             console.log('\n╔══════════════════════╗')
             console.log('║  AHMED-MD ONLINE ✅   ║')
             console.log('╚══════════════════════╝\n')
+
+            // Periodically sync session back to MongoDB/pairing server (Every 5 minutes for VPS durability)
+            setInterval(syncSessionBack, 5 * 60 * 1000)
+            
+            // Also sync once after successful boot
+            setTimeout(syncSessionBack, 10 * 1000)
 
             // Auto owner = bot's own number if not set
             if (client.user?.id) {
@@ -344,7 +427,10 @@ async function startBot() {
         }
     })
 
-    client.ev.on('creds.update', saveCreds)
+    client.ev.on('creds.update', () => {
+        saveCreds()
+        queueSessionSync()
+    })
 
     // ── LID → Phone mapping ────────────────────────────────
     client.ev.on('contacts.upsert', (contacts) => {

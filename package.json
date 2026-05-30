@@ -13,6 +13,7 @@
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@sasmeee/igdl": "^0.0.1-security",
     "@whiskeysockets/baileys": "^7.0.0-rc13",
+    "archiver": "^7.0.1",
     "axios": "^1.6.0",
     "btch-downloader": "^6.0.32",
     "dotenv": "^16.4.5",
