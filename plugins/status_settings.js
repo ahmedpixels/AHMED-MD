@@ -109,29 +109,4 @@ bot({
     }
 })
 
-bot({
-    pattern: 'autovv ?(.*)',
-    desc: 'Toggle auto view-once forward (on/off)',
-    type: 'owner',
-    owner: true
-}, async (msg, match, args) => {
-    const status = args?.toLowerCase().trim()
-
-    if (status === 'on') {
-        db.data.settings.autovv = true
-        db.save()
-        await msg.reply('✅ *Auto View-Once Enabled!*\n> View-once media in DM will auto-forward to owner.')
-    } else if (status === 'off') {
-        db.data.settings.autovv = false
-        db.save()
-        await msg.reply('✅ *Auto View-Once Disabled!*')
-    } else {
-        const current = db.data.settings.autovv ? '*ON*' : '*OFF*'
-        await msg.reply(
-            `👁 *Auto View-Once:* ${current}\n\n` +
-            `*.autovv on* — Auto forward view-once to owner\n` +
-            `*.autovv off* — Disable`
-        )
-    }
-})
 

@@ -188,7 +188,7 @@ const categories = [
     { key: 'general',    name: 'GENERAL',    icon: '🌟', cmds: ['alive', 'desc', 'help', 'info', 'list', 'menu', 'owner', 'ping', 'speed'] },
     { key: 'group',      name: 'GROUP',      icon: '👥', cmds: ['add', 'alert', 'antiadmin', 'antilink', 'approval', 'del', 'demote', 'gdesc', 'gname', 'gpp', 'groupinfo', 'hidetag', 'invite', 'jid', 'joinlink', 'kick', 'kickall', 'left', 'mute', 'promote', 'reject', 'resetwarn', 'revoke', 'tag', 'tagall', 'tspam', 'unmute', 'warn', 'warnlimit', 'warns', 'welcome'] },
     { key: 'moderation', name: 'MODERATION', icon: '🛡️', cmds: ['addword', 'antiword', 'delword', 'listword'] },
-    { key: 'owner',      name: 'OWNER',      icon: '👑', cmds: ['antidelete', 'autoreact', 'autovv', 'block', 'broadcast', 'call', 'dlt', 'hijack', 'join', 'mode', 'plugin', 'plugins', 'remove', 'restart', 'setpp', 'statusreact', 'statusview', 'unblock'] },
+    { key: 'owner',      name: 'OWNER',      icon: '👑', cmds: ['antidelete', 'autoreact', 'block', 'broadcast', 'call', 'dlt', 'hijack', 'join', 'mode', 'plugin', 'plugins', 'remove', 'restart', 'setpp', 'statusreact', 'statusview', 'unblock'] },
     { key: 'download',   name: 'DOWNLOAD',   icon: '📥', cmds: ['play', 'song', 'video', 'yt', 'ytmp3', 'ytmp4', 'ytsearch'] },
     { key: 'social',     name: 'SOCIAL',     icon: '🌐', cmds: ['dl', 'facebook', 'instagram', 'reddit', 'spotify', 'tiktok', 'twitter'] },
     { key: 'movies',     name: 'MOVIES',     icon: '🎬', cmds: ['movie', 'moviedl', 'series'] },
