@@ -355,3 +355,30 @@ bot({ pattern: 'jid ?(.*)', desc: 'Get JID of user/group', type: 'group' }, asyn
     }
     return msg.reply(msg.sender)
 })
+
+// ── .spam ──────────────────────────────────────────────────
+bot({ pattern: 'spam ?(.*)', desc: 'Spam a message', type: 'utility' }, async (msg, match, args) => {
+    let count = 1
+    let text = args || ''
+
+    const parts = text.split(' ')
+    if (parts[0] && !isNaN(parts[0])) {
+        count = parseInt(parts[0])
+        text = parts.slice(1).join(' ')
+    }
+
+    if (count > 30) count = 30
+
+    if (msg.reply_message) {
+        const txt = msg.reply_message.text || text || 'spam'
+        for (let i = 0; i < count; i++) {
+            await msg.client.sendMessage(msg.jid, { text: txt })
+        }
+    } else if (text) {
+        for (let i = 0; i < count; i++) {
+            await msg.client.sendMessage(msg.jid, { text })
+        }
+    } else {
+        return msg.reply('❌ *Reply to a message or provide text!*\nExample: `.spam 5 Hello` or reply with `.spam 5`')
+    }
+})

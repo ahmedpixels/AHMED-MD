@@ -195,7 +195,7 @@ const categories = [
     { key: 'ai',         name: 'AI',         icon: '🤖', cmds: ['ai', 'gpt'] },
     { key: 'audio',      name: 'AUDIO FX',   icon: '🎵', cmds: ['bass', 'deep', 'echo', 'fast', 'high', 'reverse', 'robot', 'slow'] },
     { key: 'fun',        name: 'FUN',        icon: '🎮', cmds: ['sticker', 'take', 'toimg'] },
-    { key: 'utility',    name: 'UTILITY',    icon: '🛠️', cmds: ['calc', 'clear', 'image', 'mp3', 'poll', 'qr', 'short', 'time', 'tr', 'tts', 'url', 'vv', 'weather'] },
+    { key: 'utility',    name: 'UTILITY',    icon: '🛠️', cmds: ['calc', 'clear', 'image', 'mp3', 'poll', 'qr', 'short', 'spam', 'time', 'tr', 'tts', 'url', 'vv', 'weather'] },
     { key: 'ahmed',      name: 'AHMED',      icon: '🔧', cmds: ['shitadmin'] },
     { key: 'games',      name: 'GAMES',      icon: '🎰', cmds: ['delttt', 'ttt'] },
     { key: 'logos',      name: 'LOGOS',      icon: '🖼️', cmds: ['cyber', 'glitch', 'gold', 'neon'] },
