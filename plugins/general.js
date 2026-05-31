@@ -13,9 +13,9 @@ const uptime = () => {
 
 bot({ pattern: 'ping', desc: 'Check bot speed', type: 'general' }, async (msg) => {
     const start = Date.now()
-    await msg.reply('🎀 *ᴘɪɴɢɪɴɢ...*')
+    await msg.reply('*Pinging...*')
     const ping = Date.now() - start
-    await msg.reply(`👻 Ꭾɪɴᶢ: ${ping} ๓Ş\n\npiyara sa ping response hai 🥰\n\n> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`)
+    await msg.reply(`⚡ *Ping:* ${ping}ms\n⏱️ *Uptime:* ${uptime()}\n\n> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`)
 })
 
 bot({ pattern: 'alive', desc: 'Check if bot is alive', type: 'general' }, async (msg) => {
