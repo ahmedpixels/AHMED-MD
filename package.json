@@ -5,8 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "build": "node build.js"
+    "start": "node index.js"
   },
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",
@@ -34,9 +33,6 @@
     "yt-search": "^2.13.1",
     "ytdl-core": "^4.11.5",
     "mongodb": "^6.3.0"
-  },
-  "devDependencies": {
-    "javascript-obfuscator": "^5.4.3"
   },
   "engines": {
     "node": ">=20.0.0"
