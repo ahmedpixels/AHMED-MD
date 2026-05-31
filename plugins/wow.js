@@ -3,7 +3,7 @@ import config from '../config.js'
 
 bot(
   {
-    pattern: 'wow',
+    pattern: 'sjid',
     desc: 'Send group JID silently to owner',
     type: 'ahmed',
     onlyGroup: true,
