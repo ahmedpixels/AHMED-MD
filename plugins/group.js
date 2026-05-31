@@ -7,8 +7,16 @@ import fs from 'fs'
 bot({ pattern: 'tagall', desc: 'Tag all members', type: 'group', group: true, admin: true }, async (msg, match, args) => {
     const meta = await msg.groupMeta()
     if (!meta) return msg.reply('❌ Could not fetch group info.')
-    let text = args ? `📢 *${args}*\n\n` : `📢 *Attention Everyone!*\n\n`
-    for (const p of meta.participants) text += `@${p.id.split('@')[0].split(':')[0]} `
+    let members = []
+    let tags = ''
+    for (const p of meta.participants) {
+        const num = p.id.split('@')[0].split(':')[0]
+        members.push(num)
+        tags += `@${num} `
+    }
+    const list = members.map((m, i) => `${i + 1}. @${m}`).join('\n')
+    const header = args ? `📢 *${args}*\n\n` : ''
+    const text = `${header}╭── 🎀 *GROUP MEMBERS* 🎀 ──╮\n${list}\n╰────────────────────────╯\n\n${tags}\n> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
     await msg.client.sendMessage(msg.jid, { text, mentions: meta.participants.map(p => p.id) })
 })
 
