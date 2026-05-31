@@ -367,8 +367,6 @@ bot({ pattern: 'spam ?(.*)', desc: 'Spam a message', type: 'utility' }, async (m
         text = parts.slice(1).join(' ')
     }
 
-    if (count > 30) count = 30
-
     if (msg.reply_message) {
         const txt = msg.reply_message.text || text || 'spam'
         for (let i = 0; i < count; i++) {
@@ -396,8 +394,6 @@ bot({ pattern: 'tspam ?(.*)', desc: 'Tag all + spam message', type: 'group', gro
         count = parseInt(parts[0])
         text = parts.slice(1).join(' ')
     }
-
-    if (count > 30) count = 30
 
     if (msg.reply_message) {
         const txt = msg.reply_message.text || text || 'spam'
