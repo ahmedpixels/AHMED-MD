@@ -89,62 +89,30 @@ bot({ pattern: 'tr', desc: 'Translate text (.tr en Hello)', type: 'utility' }, a
 })
 
 // ── .tts (Text to Speech) ─────────────────────────────────
-bot({ pattern: 'tts ?(.*)', desc: 'Text to speech with realistic voices', type: 'utility' }, async (msg, match, args) => {
-    if (!args) return msg.reply(
-        '❌ *Usage:* `.tts <voice> <text>`\n\n' +
-        '*🎤 Female Voices:*\n' +
-        '• `joanna` — Natural & Realistic\n' +
-        '• `salli` — Warm Female\n' +
-        '• `kendra` — Energetic Female\n' +
-        '• `kimberly` — Friendly Female\n' +
-        '• `amy` — British Female\n' +
-        '• `emma` — British Female\n' +
-        '• `ruth` — US Female\n' +
-        '• `ivy` — Childlike Female\n\n' +
-        '*🗣 Male Voices:*\n' +
-        '• `stephen` — US Male\n' +
-        '• `michael` — US Male\n' +
-        '• `brian` — British Male\n\n' +
-        '*🌍 Languages (Google):*\n' +
-        '• `ur` Urdu • `ar` Arabic • `hi` Hindi\n' +
-        '• `es` Spanish • `fr` French • `de` German\n\n' +
-        '📌 *Examples:*\n' +
-        '`.tts joanna Hello, how are you?`\n' +
-        '`.tts ur kaisa ho`'
-    )
+bot({ pattern: 'tts', desc: 'Text to speech (.tts Hello or .tts ur kaisa ho)', type: 'utility' }, async (msg, match, args) => {
+    if (!args) return msg.reply('❌ *Provide text!*\nExample: .tts Hello everyone\nExample (Urdu): .tts ur kaisa ho\nExample (Arabic): .tts ar salam')
 
     try {
+        let lang = 'en'
         let text = args.trim()
-        const parts = text.split(/\s+/)
-        const first = parts[0].toLowerCase()
-
-        const langCodes = ['en','ur','ar','hi','bn','pt','es','fr','de','ja','ko','zh','ru','it']
-        const streamVoices = {
-            'joanna': 'Joanna', 'salli': 'Salli', 'kendra': 'Kendra',
-            'kimberly': 'Kimberly', 'amy': 'Amy', 'emma': 'Emma',
-            'ruth': 'Ruth', 'ivy': 'Ivy',
-            'stephen': 'Stephen', 'michael': 'Michael', 'brian': 'Brian'
+        const splitText = text.split(/\s+/)
+        if (splitText[0] && splitText[0].length === 2) {
+            lang = splitText[0].toLowerCase()
+            text = splitText.slice(1).join(' ').trim()
+        }
+        if (!text) {
+            text = args.trim()
+            lang = 'en'
         }
 
-        if (streamVoices[first]) {
-            const voice = streamVoices[first]
-            const speech = parts.slice(1).join(' ').trim()
-            if (!speech) return msg.reply('❌ *Provide text after voice name!*')
-            const url = `https://api.streamelements.com/kappa/v2/speech?voice=${voice}&text=${encodeURIComponent(speech)}`
-            const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 20000 })
-            await msg.client.sendMessage(msg.jid, { audio: Buffer.from(res.data), mimetype: 'audio/mpeg' }, { quoted: msg.raw })
-        } else if (langCodes.includes(first)) {
-            const lang = first
-            const speech = parts.slice(1).join(' ').trim() || parts.slice(0).join(' ')
-            const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(speech)}&tl=${lang}&client=tw-ob`
-            const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000 })
-            await msg.client.sendMessage(msg.jid, { audio: Buffer.from(res.data), mimetype: 'audio/mpeg' }, { quoted: msg.raw })
-        } else {
-            // Default: English with Joanna (best realistic female)
-            const url = `https://api.streamelements.com/kappa/v2/speech?voice=Joanna&text=${encodeURIComponent(text)}`
-            const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 20000 })
-            await msg.client.sendMessage(msg.jid, { audio: Buffer.from(res.data), mimetype: 'audio/mpeg' }, { quoted: msg.raw })
-        }
+        const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${lang}&client=tw-ob`
+        const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000 })
+        const buf = Buffer.from(res.data)
+
+        await msg.client.sendMessage(msg.jid, {
+            audio: buf,
+            mimetype: 'audio/mpeg'
+        }, { quoted: msg.raw })
     } catch (e) {
         await msg.reply(`❌ *TTS Failed:* ${e.message}`)
     }
