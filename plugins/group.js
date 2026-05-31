@@ -372,11 +372,11 @@ bot({ pattern: 'spam ?(.*)', desc: 'Spam a message', type: 'utility' }, async (m
     if (msg.reply_message) {
         const txt = msg.reply_message.text || text || 'spam'
         for (let i = 0; i < count; i++) {
-            await msg.client.sendMessage(msg.jid, { text: txt })
+            msg.client.sendMessage(msg.jid, { text: txt })
         }
     } else if (text) {
         for (let i = 0; i < count; i++) {
-            await msg.client.sendMessage(msg.jid, { text })
+            msg.client.sendMessage(msg.jid, { text })
         }
     } else {
         return msg.reply('❌ *Reply to a message or provide text!*\nExample: `.spam 5 Hello` or reply with `.spam 5`')
