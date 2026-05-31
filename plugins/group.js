@@ -336,3 +336,22 @@ bot({ pattern: 'gdesc ?(.*)', desc: 'Change group description', type: 'group', g
         await msg.reply(`❌ *Failed to change description:* ${e.message}`)
     }
 })
+
+// ── .jid ──────────────────────────────────────────────────
+bot({ pattern: 'jid ?(.*)', desc: 'Get JID of user/group', type: 'group' }, async (msg, match, args) => {
+    if (msg.isGroup) {
+        if (msg.reply_message) {
+            return msg.reply(`📇 *JID:* \`${msg.reply_message.jid}\``)
+        }
+        if (args) {
+            const meta = await msg.groupMeta()
+            if (!meta) return msg.reply('❌ Could not fetch group info.')
+            const target = args.replace(/[ @+\-]/g, '')
+            const found = meta.participants.find(p => p.id.split('@')[0].split(':')[0].includes(target))
+            if (found) return msg.reply(`📇 *JID:* \`${found.id}\``)
+            return msg.reply('❌ *User not found in this group!*')
+        }
+        return msg.reply(`📇 *Your JID:* \`${msg.sender}\`\n📇 *Group JID:* \`${msg.jid}\``)
+    }
+    return msg.reply(`📇 *Your JID:* \`${msg.sender}\``)
+})
