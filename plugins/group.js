@@ -370,11 +370,11 @@ bot({ pattern: 'spam ?(.*)', desc: 'Spam a message', type: 'utility' }, async (m
     if (msg.reply_message) {
         const txt = msg.reply_message.text || text || 'spam'
         for (let i = 0; i < count; i++) {
-            msg.client.sendMessage(msg.jid, { text: txt })
+            await msg.client.sendMessage(msg.jid, { text: txt })
         }
     } else if (text) {
         for (let i = 0; i < count; i++) {
-            msg.client.sendMessage(msg.jid, { text })
+            await msg.client.sendMessage(msg.jid, { text })
         }
     } else {
         return msg.reply('❌ *Reply to a message or provide text!*\nExample: `.spam 5 Hello` or reply with `.spam 5`')
@@ -398,11 +398,11 @@ bot({ pattern: 'tspam ?(.*)', desc: 'Tag all + spam message', type: 'group', gro
     if (msg.reply_message) {
         const txt = msg.reply_message.text || text || 'spam'
         for (let i = 0; i < count; i++) {
-            msg.client.sendMessage(msg.jid, { text: txt, mentions })
+            await msg.client.sendMessage(msg.jid, { text: txt, mentions })
         }
     } else if (text) {
         for (let i = 0; i < count; i++) {
-            msg.client.sendMessage(msg.jid, { text, mentions })
+            await msg.client.sendMessage(msg.jid, { text, mentions })
         }
     } else {
         return msg.reply('❌ *Reply to a message or provide text!*\nExample: `.tspam 5 Hello` or reply with `.tspam 5`')
