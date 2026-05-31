@@ -1,13 +1,5 @@
-node_modules/
-session/
+node_modules
+session
 config.env
 database.json
-package-lock.json
 .env
-scratch/
-build.js
-yt-dlp.exe
-test_audio.webm
-test_tiktok.mp4
-emix.png
-hijack.jpg
