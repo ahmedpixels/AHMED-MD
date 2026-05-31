@@ -15,7 +15,7 @@ bot({ pattern: 'ping', desc: 'Check bot speed', type: 'general' }, async (msg) =
     const start = Date.now()
     await msg.reply('🎀 *ᴘɪɴɢɪɴɢ...*')
     const ping = Date.now() - start
-    await msg.reply(`👻 Ꭾɪɴᶢ: ${ping} ๓Ş\n\n1 bot ka ping respone hai\ndaikho chota sa kitna piyara hai\nhumary wala is say bi piyara kro 🥰\n\n> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`)
+    await msg.reply(`👻 Ꭾɪɴᶢ: ${ping} ๓Ş\n\npiyara sa ping response hai 🥰\n\n> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`)
 })
 
 bot({ pattern: 'alive', desc: 'Check if bot is alive', type: 'general' }, async (msg) => {
