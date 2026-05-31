@@ -1,5 +1,4 @@
-import { bot, msgCache } from '../lib/handler.js'
-import config from '../config.js'
+import { bot } from '../lib/handler.js'
 import db from '../lib/database.js'
 
 function getStatus(label, val) {
@@ -36,73 +35,5 @@ bot({ pattern: 'antidelete ?(.*)', desc: 'Toggle anti-delete for p(g)/g(roup)', 
             `*.antidelete p* — Toggle DM\n` +
             `*.antidelete g* — Toggle Group`
         await msg.reply(s)
-    }
-})
-
-bot({ on: 'message' }, async (msg) => {
-    const m = msg.raw
-    if (!m?.message?.protocolMessage) return
-    const proto = m.message.protocolMessage
-    if (proto.type !== 0) return
-    const deletedKey = proto.key
-    if (!deletedKey?.id) return
-
-    const isGroup = deletedKey.remoteJid?.endsWith('@g.us')
-    const enabled = isGroup ? db.data.settings.antidelete_g : db.data.settings.antidelete_p
-    if (!enabled) return
-
-    const original = msgCache.get(deletedKey.id)
-    if (!original) return
-
-    const decodeJid = (jid) => {
-        if (!jid) return jid
-        if (/:\d+@/gi.test(jid)) {
-            const decode = jid.split(':')
-            return (decode[0] + '@' + decode[1].split('@')[1]) || jid
-        }
-        return jid
-    }
-
-    const selfJid = decodeJid(msg.client.user?.id)
-    const ownerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`
-
-    const chatJid = m.key.remoteJid
-    const deleter = m.key.participant || m.key.remoteJid
-    const delNum = deleter.split('@')[0].split(':')[0]
-    const chatName = isGroup ? 'Group Chat' : 'Private Inbox'
-
-    let deletedContent = ''
-    if (original.message) {
-        deletedContent = original.message.conversation ||
-                         original.message.extendedTextMessage?.text ||
-                         original.message.imageMessage?.caption ||
-                         original.message.videoMessage?.caption ||
-                         '[Media/File/Other]'
-    }
-
-    const report =
-        `🗑️ *ANTI-DELETE ALERT!*\n` +
-        `━━━━━━━━━━━━━━━━━━━━━\n` +
-        `👤 *Sender:* @${delNum}\n` +
-        `💬 *Type:* ${chatName}\n` +
-        `📍 *Chat JID:* ${chatJid}\n` +
-        `🕒 *Time:* ${new Date().toLocaleString()}\n` +
-        `━━━━━━━━━━━━━━━━━━━━━\n` +
-        `📝 *Message Content:*\n` +
-        `"${deletedContent}"\n` +
-        `━━━━━━━━━━━━━━━━━━━━━\n` +
-        `> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
-
-    try {
-        const targets = new Set()
-        if (selfJid) targets.add(selfJid)
-        if (ownerJid) targets.add(ownerJid)
-        const botFull = msg.client.user?.id
-        if (botFull) targets.add(botFull)
-        for (const t of targets) {
-            try { await msg.client.sendMessage(t, { text: report, mentions: [deleter] }) } catch {}
-        }
-    } catch (e) {
-        console.error('[Anti-Delete Send Error]', e)
     }
 })
