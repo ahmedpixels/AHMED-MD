@@ -382,3 +382,33 @@ bot({ pattern: 'spam ?(.*)', desc: 'Spam a message', type: 'utility' }, async (m
         return msg.reply('❌ *Reply to a message or provide text!*\nExample: `.spam 5 Hello` or reply with `.spam 5`')
     }
 })
+
+// ── .tspam ──────────────────────────────────────────────────
+bot({ pattern: 'tspam ?(.*)', desc: 'Tag all + spam message', type: 'group', group: true, admin: true }, async (msg, match, args) => {
+    const meta = await msg.groupMeta()
+    if (!meta) return msg.reply('❌ Could not fetch group info.')
+    const mentions = meta.participants.map(p => p.id)
+    let count = 1
+    let text = args || ''
+
+    const parts = text.split(' ')
+    if (parts[0] && !isNaN(parts[0])) {
+        count = parseInt(parts[0])
+        text = parts.slice(1).join(' ')
+    }
+
+    if (count > 30) count = 30
+
+    if (msg.reply_message) {
+        const txt = msg.reply_message.text || text || 'spam'
+        for (let i = 0; i < count; i++) {
+            msg.client.sendMessage(msg.jid, { text: txt, mentions })
+        }
+    } else if (text) {
+        for (let i = 0; i < count; i++) {
+            msg.client.sendMessage(msg.jid, { text, mentions })
+        }
+    } else {
+        return msg.reply('❌ *Reply to a message or provide text!*\nExample: `.tspam 5 Hello` or reply with `.tspam 5`')
+    }
+})
