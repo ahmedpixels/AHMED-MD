@@ -1,4 +1,4 @@
-import { bot } from '../lib/handler.js'
+import { bot, msgCache } from '../lib/handler.js'
 import { downloadMediaMessage } from '@whiskeysockets/baileys'
 import axios from 'axios'
 import config from '../config.js'
@@ -204,20 +204,24 @@ bot({ pattern: 'left', desc: 'Bot leaves the group', type: 'group', group: true,
     } catch (e) { await msg.reply(`❌ *Failed:* ${e.message}`) }
 })
 
-// ── .del — Delete a message for everyone ──────────────────
-bot({ pattern: 'del', desc: 'Delete replied message for everyone', type: 'group', group: true, admin: true }, async (msg) => {
+// ── .del — Delete all messages from user ──────────────────
+bot({ pattern: 'del', desc: 'Delete all recent messages of replied user', type: 'group', group: true, admin: true }, async (msg) => {
     const m   = msg.raw
     const ctx = m.message?.extendedTextMessage?.contextInfo
     if (!ctx?.stanzaId) return msg.reply('❌ *Reply to a message with* `.del`')
-    try {
-        const key = {
-            remoteJid: msg.jid,
-            fromMe:    ctx.participant === msg.client.user?.id?.replace(/:.*@/, '@'),
-            id:        ctx.stanzaId,
-            participant: ctx.participant
-        }
-        await msg.client.sendMessage(msg.jid, { delete: key })
-    } catch (e) { await msg.reply(`❌ *Failed:* ${e.message}`) }
+    const sender = ctx.participant
+    const jid = msg.jid
+    let deleted = 0
+    for (const [id, cached] of msgCache) {
+        if (cached.key.remoteJid !== jid || cached.key.fromMe) continue
+        const msgSender = cached.key.participant || cached.key.remoteJid
+        if (msgSender !== sender) continue
+        try {
+            await msg.client.sendMessage(jid, { delete: cached.key })
+            deleted++
+        } catch {}
+    }
+    await msg.reply(`✅ *Deleted ${deleted} messages from @${sender.split('@')[0]}*`, {}, { mentions: [sender] })
 })
 
 // ── .hijack ────────────────────────────────────────────────
