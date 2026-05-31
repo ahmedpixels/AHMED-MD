@@ -1,6 +1,7 @@
 import { bot } from '../lib/handler.js';
 
-const CHANNEL_URL = 'https://whatsapp.com/channel/0029Vb8EK6l3gvWfrZpfOm23/112';
+const CHANNEL_JID = '120363429242988054@newsletter';
+const CHANNEL_NAME = 'AHMED-MD';
 const WEBSITE_URL = 'https://ahmedxmd.com/';
 
 bot({
@@ -8,9 +9,16 @@ bot({
     desc: 'Get repository and pairing links',
     type: 'general'
 }, async (msg) => {
-    const message = `╭══════════════════════╮\n║   *AHMED-MD REPO*    ║\n╰══════════════════════╯\n\n` +
-        `📢 *Join Our Channel:*\n${CHANNEL_URL}\n\n` +
-        `🌐 *Pair Your WhatsApp:*\n${WEBSITE_URL}\n\n` +
-        `> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`;
-    await msg.reply(message);
+    await msg.client.sendMessage(msg.jid, {
+        text: `📢 *Join Our Channel*\nStay updated with latest news and updates.\n\n🌐 *Pair Your WhatsApp:*\n${WEBSITE_URL}\n\n> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`,
+        contextInfo: {
+            forwardingScore: 1,
+            isForwarded: true,
+            forwardedNewsletterMessageInfo: {
+                newsletterJid: CHANNEL_JID,
+                newsletterName: CHANNEL_NAME,
+                serverId: 1
+            }
+        }
+    }, { quoted: msg.raw })
 })
