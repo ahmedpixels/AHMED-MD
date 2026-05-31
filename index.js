@@ -511,7 +511,6 @@ async function startBot() {
         for (const call of calls) {
             if (call.status === 'offer') {
                 await client.rejectCall(call.id, call.from)
-                await client.sendMessage(call.from, { text: '❌ *Busy*' })
             }
         }
     })
