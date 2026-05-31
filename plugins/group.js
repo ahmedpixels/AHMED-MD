@@ -22,17 +22,48 @@ bot({ pattern: 'tagall', desc: 'Tag all members', type: 'group', group: true, ad
 })
 
 // ── .tag ──────────────────────────────────────────────────
-bot({ pattern: 'tag ?(.*)', desc: 'Tag all with custom message', type: 'group', group: true, admin: true }, async (msg, match, args) => {
+bot({ pattern: 'tag ?(.*)', desc: 'Tag all with replied message or custom text', type: 'group', group: true, admin: true }, async (msg, match, args) => {
     const meta = await msg.groupMeta()
     if (!meta) return msg.reply('❌ Could not fetch group info.')
-    let text = args || ''
-    const m = msg.raw
-    const quoted = m.message?.extendedTextMessage?.contextInfo?.quotedMessage
-    if (!text && quoted) {
-        text = quoted.conversation || quoted.extendedTextMessage?.text || ''
+    const mentions = meta.participants.map(p => p.id)
+
+    if (msg.reply_message) {
+        const rm = msg.reply_message
+        const quotedMsg = rm.msg
+        const type = rm.type
+
+        try {
+            if (type === 'conversation' || type === 'extendedTextMessage') {
+                const txt = rm.text || ''
+                await msg.client.sendMessage(msg.jid, { text: txt, mentions })
+            } else if (type === 'imageMessage' || type === 'videoMessage') {
+                const buf = await downloadMediaMessage({ key: rm.key, message: { [type]: quotedMsg[type] } }, 'buffer', {}, { logger: undefined })
+                const caption = (quotedMsg[type]?.caption || '')
+                const content = type === 'imageMessage' ? { image: buf, caption, mentions } : { video: buf, caption, mentions }
+                await msg.client.sendMessage(msg.jid, content)
+            } else if (type === 'audioMessage') {
+                const buf = await downloadMediaMessage({ key: rm.key, message: quotedMsg }, 'buffer', {}, { logger: undefined })
+                await msg.client.sendMessage(msg.jid, { audio: buf, mimetype: quotedMsg.audioMessage?.mimetype, mentions })
+            } else if (type === 'stickerMessage') {
+                const buf = await downloadMediaMessage({ key: rm.key, message: quotedMsg }, 'buffer', {}, { logger: undefined })
+                await msg.client.sendMessage(msg.jid, { sticker: buf, mentions })
+            } else if (type === 'documentMessage') {
+                const buf = await downloadMediaMessage({ key: rm.key, message: quotedMsg }, 'buffer', {}, { logger: undefined })
+                const doc = quotedMsg.documentMessage
+                await msg.client.sendMessage(msg.jid, { document: buf, mimetype: doc?.mimetype, fileName: doc?.fileName || 'file', caption: doc?.caption || '', mentions })
+            } else {
+                const txt = rm.text || ''
+                await msg.client.sendMessage(msg.jid, { text: txt || '📎', mentions })
+            }
+        } catch (e) {
+            const txt = rm.text || '📎'
+            await msg.client.sendMessage(msg.jid, { text: txt, mentions })
+        }
+    } else if (args) {
+        await msg.client.sendMessage(msg.jid, { text: args, mentions })
+    } else {
+        return msg.reply('❌ *Reply to a message or provide text!*\nUsage: `.tag Hello` or reply to any message with `.tag`')
     }
-    if (!text) return msg.reply('❌ *Provide a message or reply to one!*\nUsage: `.tag Hello everyone` or reply to a message with `.tag`')
-    await msg.client.sendMessage(msg.jid, { text, mentions: meta.participants.map(p => p.id) })
 })
 
 // ── .kick ──────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import db from '../lib/database.js'
+import { bot } from '../lib/handler.js'
 
 const QUOTES = [
     '🌸 One Day, Everything Will Make Sense',
