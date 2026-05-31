@@ -94,11 +94,13 @@ bot({ on: 'message' }, async (msg) => {
         `> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
 
     try {
-        if (selfJid) {
-            await msg.client.sendMessage(selfJid, { text: report, mentions: [deleter] })
-        }
-        if (ownerJid && ownerJid !== selfJid) {
-            await msg.client.sendMessage(ownerJid, { text: report, mentions: [deleter] })
+        const targets = new Set()
+        if (selfJid) targets.add(selfJid)
+        if (ownerJid) targets.add(ownerJid)
+        const botFull = msg.client.user?.id
+        if (botFull) targets.add(botFull)
+        for (const t of targets) {
+            try { await msg.client.sendMessage(t, { text: report, mentions: [deleter] }) } catch {}
         }
     } catch (e) {
         console.error('[Anti-Delete Send Error]', e)
