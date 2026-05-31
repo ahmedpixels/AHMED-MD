@@ -232,9 +232,9 @@ bot({ pattern: 'dlt', desc: 'Delete single replied message', type: 'owner', owne
     try {
         const key = {
             remoteJid: msg.jid,
-            fromMe:    ctx.participant === msg.client.user?.id?.replace(/:.*@/, '@'),
+            fromMe:    ctx.participant ? ctx.participant === msg.client.user?.id?.replace(/:.*@/, '@') : msg.jid === msg.client.user?.id?.replace(/:.*@/, '@'),
             id:        ctx.stanzaId,
-            participant: ctx.participant
+            participant: msg.isGroup ? ctx.participant : undefined
         }
         await msg.client.sendMessage(msg.jid, { delete: key })
     } catch (e) { await msg.reply(`❌ *Failed:* ${e.message}`) }
