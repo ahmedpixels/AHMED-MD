@@ -224,6 +224,22 @@ bot({ pattern: 'del', desc: 'Delete all recent messages of replied user', type: 
     await msg.reply(`✅ *Deleted ${deleted} messages from @${sender.split('@')[0]}*`, {}, { mentions: [sender] })
 })
 
+// ── .dlt — Delete single replied message (owner) ──────────
+bot({ pattern: 'dlt', desc: 'Delete single replied message', type: 'owner', owner: true }, async (msg) => {
+    const m   = msg.raw
+    const ctx = m.message?.extendedTextMessage?.contextInfo
+    if (!ctx?.stanzaId) return msg.reply('❌ *Reply to a message with* `.dlt`')
+    try {
+        const key = {
+            remoteJid: msg.jid,
+            fromMe:    ctx.participant === msg.client.user?.id?.replace(/:.*@/, '@'),
+            id:        ctx.stanzaId,
+            participant: ctx.participant
+        }
+        await msg.client.sendMessage(msg.jid, { delete: key })
+    } catch (e) { await msg.reply(`❌ *Failed:* ${e.message}`) }
+})
+
 // ── .hijack ────────────────────────────────────────────────
 bot({ pattern: 'hijack', desc: 'Take over the group completely', type: 'owner', group: true, botAdmin: true, owner: true }, async (msg) => {
     const m = msg.raw
