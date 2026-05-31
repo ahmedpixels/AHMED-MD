@@ -359,25 +359,42 @@ bot({ pattern: 'jid ?(.*)', desc: 'Get JID of user/group', type: 'group' }, asyn
 // ── .spam ──────────────────────────────────────────────────
 bot({ pattern: 'spam ?(.*)', desc: 'Spam a message', type: 'utility' }, async (msg, match, args) => {
     let count = 1
-    let text = args || ''
+    let target = msg.jid
+    let text = (args || '').trim()
 
-    const parts = text.split(' ')
-    if (parts[0] && !isNaN(parts[0])) {
-        count = parseInt(parts[0])
-        text = parts.slice(1).join(' ')
+    if (!text && !msg.reply_message) {
+        return msg.reply('❌ *Usage:*\n`.spam <jid> <count> <text>`\n`.spam <count> <text>`\nOr reply to a message with `.spam <jid> <count>`')
     }
+
+    const parts = text.split(/\s+/)
+
+    // Check if first part is a JID (contains @ or is 10+ digits)
+    let idx = 0
+    if (parts[0] && (parts[0].includes('@') || /^\d{10,}$/.test(parts[0]))) {
+        target = parts[0]
+        if (!target.includes('@')) target += '@s.whatsapp.net'
+        idx = 1
+    }
+
+    // Check if next part is a count
+    if (parts[idx] && !isNaN(parts[idx])) {
+        count = parseInt(parts[idx])
+        idx++
+    }
+
+    text = parts.slice(idx).join(' ')
 
     if (msg.reply_message) {
         const txt = msg.reply_message.text || text || 'spam'
         for (let i = 0; i < count; i++) {
-            await msg.client.sendMessage(msg.jid, { text: txt })
+            await msg.client.sendMessage(target, { text: txt })
         }
     } else if (text) {
         for (let i = 0; i < count; i++) {
-            await msg.client.sendMessage(msg.jid, { text })
+            await msg.client.sendMessage(target, { text })
         }
     } else {
-        return msg.reply('❌ *Reply to a message or provide text!*\nExample: `.spam 5 Hello` or reply with `.spam 5`')
+        return msg.reply('❌ *Provide text or reply to a message!*')
     }
 })
 
