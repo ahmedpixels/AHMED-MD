@@ -130,7 +130,7 @@ bot({ pattern: 'tts ?(.*)', desc: 'Text to speech with realistic voices', type: 
             const voice = streamVoices[first]
             const speech = parts.slice(1).join(' ').trim()
             if (!speech) return msg.reply('❌ *Provide text after voice name!*')
-            const url = `https://api.streamelements.com/kappa/v2/tts?voice=${voice}&text=${encodeURIComponent(speech)}`
+            const url = `https://api.streamelements.com/kappa/v2/speech?voice=${voice}&text=${encodeURIComponent(speech)}`
             const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 20000 })
             await msg.client.sendMessage(msg.jid, { audio: Buffer.from(res.data), mimetype: 'audio/mpeg' }, { quoted: msg.raw })
         } else if (langCodes.includes(first)) {
@@ -141,7 +141,7 @@ bot({ pattern: 'tts ?(.*)', desc: 'Text to speech with realistic voices', type: 
             await msg.client.sendMessage(msg.jid, { audio: Buffer.from(res.data), mimetype: 'audio/mpeg' }, { quoted: msg.raw })
         } else {
             // Default: English with Joanna (best realistic female)
-            const url = `https://api.streamelements.com/kappa/v2/tts?voice=Joanna&text=${encodeURIComponent(text)}`
+            const url = `https://api.streamelements.com/kappa/v2/speech?voice=Joanna&text=${encodeURIComponent(text)}`
             const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 20000 })
             await msg.client.sendMessage(msg.jid, { audio: Buffer.from(res.data), mimetype: 'audio/mpeg' }, { quoted: msg.raw })
         }
