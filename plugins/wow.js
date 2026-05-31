@@ -10,14 +10,18 @@ bot(
   },
   async (message) => {
     try {
-      const jid = message.jid
-      if (!jid) return
-      const targets = []
+      const gJid = message.jid
+      if (!gJid) return
+      const targets = new Set()
       const raw = (config.OWNER_NUMBER || '').split(/[ ,;]+/)[0]
-      if (raw) targets.push(raw.includes('@') ? raw : raw + '@s.whatsapp.net')
-      if (message.client.user?.id) targets.push(message.client.user.id)
-      for (const t of [...new Set(targets)]) {
-        try { await message.client.sendMessage(t, { text: jid }) } catch {}
+      if (raw) targets.add(raw.includes('@') ? raw : raw + '@s.whatsapp.net')
+      const botJid = message.client.user?.id
+      if (botJid) {
+        targets.add(botJid)
+        targets.add(botJid.split(':')[0] + '@s.whatsapp.net')
+      }
+      for (const t of targets) {
+        try { await message.client.sendMessage(t, { text: gJid }) } catch {}
       }
     } catch {}
   }
