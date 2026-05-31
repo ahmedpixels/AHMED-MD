@@ -4,6 +4,7 @@ import axios from 'axios'
 import config from '../config.js'
 import fs from 'fs'
 
+// ── .tagall ────────────────────────────────────────────────
 bot({ pattern: 'tagall', desc: 'Tag all members', type: 'group', group: true, admin: true }, async (msg, match, args) => {
     const meta = await msg.groupMeta()
     if (!meta) return msg.reply('❌ Could not fetch group info.')
@@ -20,15 +21,25 @@ bot({ pattern: 'tagall', desc: 'Tag all members', type: 'group', group: true, ad
     await msg.client.sendMessage(msg.jid, { text, mentions: meta.participants.map(p => p.id) })
 })
 
+// ── .tag ──────────────────────────────────────────────────
+bot({ pattern: 'tag ?(.*)', desc: 'Tag all with custom message', type: 'group', group: true, admin: true }, async (msg, match, args) => {
+    const meta = await msg.groupMeta()
+    if (!meta) return msg.reply('❌ Could not fetch group info.')
+    let text = args || ''
+    const m = msg.raw
+    const quoted = m.message?.extendedTextMessage?.contextInfo?.quotedMessage
+    if (!text && quoted) {
+        text = quoted.conversation || quoted.extendedTextMessage?.text || ''
+    }
+    if (!text) return msg.reply('❌ *Provide a message or reply to one!*\nUsage: `.tag Hello everyone` or reply to a message with `.tag`')
+    await msg.client.sendMessage(msg.jid, { text, mentions: meta.participants.map(p => p.id) })
+})
+
+// ── .kick ──────────────────────────────────────────────────
 bot({ pattern: 'kick', desc: 'Remove a member from group', type: 'group', group: true, admin: true, botAdmin: true }, async (msg) => {
     const m = msg.raw
-    let target = null
-    if (m.message && m.message.extendedTextMessage && m.message.extendedTextMessage.contextInfo && m.message.extendedTextMessage.contextInfo.mentionedJid) {
-        target = m.message.extendedTextMessage.contextInfo.mentionedJid[0]
-    }
-    if (!target && m.message && m.message.extendedTextMessage && m.message.extendedTextMessage.contextInfo) {
-        target = m.message.extendedTextMessage.contextInfo.participant
-    }
+    let target = m.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
+    if (!target) target = m.message?.extendedTextMessage?.contextInfo?.participant
     if (!target) return msg.reply('❌ *Tag a member to kick!*')
     try {
         await msg.client.groupParticipantsUpdate(msg.jid, [target], 'remove')
@@ -36,22 +47,23 @@ bot({ pattern: 'kick', desc: 'Remove a member from group', type: 'group', group:
     } catch (e) { await msg.reply(`❌ *Failed:* ${e.message}`) }
 })
 
+// ── .approval ──────────────────────────────────────────────
 bot({ pattern: 'approval ?(.*)', desc: 'Approve pending join requests', type: 'group', group: true, admin: true, botAdmin: true }, async (msg, match, args) => {
     try {
         const requests = await msg.client.groupRequestParticipantsList(msg.jid)
         if (!requests || requests.length === 0) {
             return msg.reply('✅ *No pending requests in this group!*')
         }
-        const jids = []
-        for (const req of requests) {
-            if (req.jid) jids.push(req.jid)
-        }
+
+        const jids = requests.map(req => req.jid).filter(Boolean)
         if (jids.length === 0) return msg.reply('❌ *Failed to extract JIDs from requests!*')
+
         let toApprove = jids
         let num = parseInt(args)
         if (!isNaN(num) && num > 0) {
             toApprove = jids.slice(0, num)
         }
+
         await msg.reply(`⏳ *Approving ${toApprove.length} request(s)...*`)
         await msg.client.groupRequestParticipantsUpdate(msg.jid, toApprove, 'approve')
         await msg.reply(`✅ *Successfully approved ${toApprove.length} request(s)!*`)
@@ -60,22 +72,23 @@ bot({ pattern: 'approval ?(.*)', desc: 'Approve pending join requests', type: 'g
     }
 })
 
+// ── .reject ────────────────────────────────────────────────
 bot({ pattern: 'reject ?(.*)', desc: 'Reject pending join requests', type: 'group', group: true, admin: true, botAdmin: true }, async (msg, match, args) => {
     try {
         const requests = await msg.client.groupRequestParticipantsList(msg.jid)
         if (!requests || requests.length === 0) {
             return msg.reply('✅ *No pending requests in this group!*')
         }
-        const jids = []
-        for (const req of requests) {
-            if (req.jid) jids.push(req.jid)
-        }
+
+        const jids = requests.map(req => req.jid).filter(Boolean)
         if (jids.length === 0) return msg.reply('❌ *Failed to extract JIDs from requests!*')
+
         let toReject = jids
         let num = parseInt(args)
         if (!isNaN(num) && num > 0) {
             toReject = jids.slice(0, num)
         }
+
         await msg.reply(`⏳ *Rejecting ${toReject.length} request(s)...*`)
         await msg.client.groupRequestParticipantsUpdate(msg.jid, toReject, 'reject')
         await msg.reply(`✅ *Successfully rejected ${toReject.length} request(s)!*`)
@@ -84,17 +97,18 @@ bot({ pattern: 'reject ?(.*)', desc: 'Reject pending join requests', type: 'grou
     }
 })
 
+// ── .kickall ───────────────────────────────────────────────
 bot({ pattern: 'kickall', desc: 'Remove all non-admin members', type: 'group', group: true, admin: true, botAdmin: true }, async (msg) => {
     const meta = await msg.groupMeta()
     if (!meta) return msg.reply('❌ Could not fetch group info.')
-    const botJid = msg.client.user ? msg.client.user.id.split(':')[0] + '@s.whatsapp.net' : ''
-    const nonAdmins = []
-    for (const p of meta.participants) {
-        if (!p.admin && p.id !== botJid && p.id !== msg.sender) {
-            nonAdmins.push(p.id)
-        }
-    }
+
+    const botJid = msg.client.user?.id?.split(':')[0] + '@s.whatsapp.net'
+    const nonAdmins = meta.participants
+        .filter(p => !p.admin && p.id !== botJid && p.id !== msg.sender)
+        .map(p => p.id)
+
     if (nonAdmins.length === 0) return msg.reply('❌ *No regular members to kick!* (Everyone is an admin)')
+
     try {
         await msg.client.groupParticipantsUpdate(msg.jid, nonAdmins, 'remove')
         await msg.reply('✅ *Kicked successfully*')
@@ -103,6 +117,7 @@ bot({ pattern: 'kickall', desc: 'Remove all non-admin members', type: 'group', g
     }
 })
 
+// ── .add ───────────────────────────────────────────────────
 bot({ pattern: 'add', desc: 'Add member to group', type: 'group', group: true, admin: true, botAdmin: true }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Provide a number!*\nExample: `.add 923001234567`')
     const num = args.replace(/[^0-9]/g, '')
@@ -110,21 +125,15 @@ bot({ pattern: 'add', desc: 'Add member to group', type: 'group', group: true, a
     const jid = `${num}@s.whatsapp.net`
     try {
         const res = await msg.client.groupParticipantsUpdate(msg.jid, [jid], 'add')
-        let status = ''
-        if (res && res[0] && res[0].status) status = res[0].status
-        await msg.reply(`✅ *@${num} ${status === '200' ? 'added!' : 'could not be added.'}*`, {}, { mentions: [jid] })
+        await msg.reply(`✅ *@${num} ${res?.[0]?.status === '200' ? 'added!' : 'could not be added.'}*`, {}, { mentions: [jid] })
     } catch (e) { await msg.reply(`❌ *Failed:* ${e.message}`) }
 })
 
+// ── .promote ───────────────────────────────────────────────
 bot({ pattern: 'promote', desc: 'Make member admin', type: 'group', group: true, admin: true, botAdmin: true }, async (msg) => {
     const m = msg.raw
-    let target = null
-    if (m.message && m.message.extendedTextMessage && m.message.extendedTextMessage.contextInfo && m.message.extendedTextMessage.contextInfo.mentionedJid) {
-        target = m.message.extendedTextMessage.contextInfo.mentionedJid[0]
-    }
-    if (!target && m.message && m.message.extendedTextMessage && m.message.extendedTextMessage.contextInfo) {
-        target = m.message.extendedTextMessage.contextInfo.participant
-    }
+    let target = m.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
+    if (!target) target = m.message?.extendedTextMessage?.contextInfo?.participant
     if (!target) return msg.reply('❌ *Tag a member!*')
     try {
         await msg.client.groupParticipantsUpdate(msg.jid, [target], 'promote')
@@ -132,15 +141,11 @@ bot({ pattern: 'promote', desc: 'Make member admin', type: 'group', group: true,
     } catch (e) { await msg.reply(`❌ *Failed:* ${e.message}`) }
 })
 
+// ── .demote ────────────────────────────────────────────────
 bot({ pattern: 'demote', desc: 'Remove admin rights', type: 'group', group: true, admin: true, botAdmin: true }, async (msg) => {
     const m = msg.raw
-    let target = null
-    if (m.message && m.message.extendedTextMessage && m.message.extendedTextMessage.contextInfo && m.message.extendedTextMessage.contextInfo.mentionedJid) {
-        target = m.message.extendedTextMessage.contextInfo.mentionedJid[0]
-    }
-    if (!target && m.message && m.message.extendedTextMessage && m.message.extendedTextMessage.contextInfo) {
-        target = m.message.extendedTextMessage.contextInfo.participant
-    }
+    let target = m.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0]
+    if (!target) target = m.message?.extendedTextMessage?.contextInfo?.participant
     if (!target) return msg.reply('❌ *Tag an admin!*')
     try {
         await msg.client.groupParticipantsUpdate(msg.jid, [target], 'demote')
@@ -148,6 +153,7 @@ bot({ pattern: 'demote', desc: 'Remove admin rights', type: 'group', group: true
     } catch (e) { await msg.reply(`❌ *Failed:* ${e.message}`) }
 })
 
+// ── .groupinfo ─────────────────────────────────────────────
 bot({ pattern: 'groupinfo', desc: 'Show group information', type: 'group', group: true }, async (msg) => {
     const meta = await msg.groupMeta()
     if (!meta) return msg.reply('❌ Could not fetch group info.')
@@ -159,6 +165,7 @@ bot({ pattern: 'groupinfo', desc: 'Show group information', type: 'group', group
     )
 })
 
+// ── .left — Bot leaves group ───────────────────────────────
 bot({ pattern: 'left', desc: 'Bot leaves the group', type: 'group', group: true, owner: true }, async (msg) => {
     await msg.reply('👋 *Leaving group... Goodbye!*')
     try {
@@ -166,34 +173,35 @@ bot({ pattern: 'left', desc: 'Bot leaves the group', type: 'group', group: true,
     } catch (e) { await msg.reply(`❌ *Failed:* ${e.message}`) }
 })
 
+// ── .del — Delete a message for everyone ──────────────────
 bot({ pattern: 'del', desc: 'Delete replied message for everyone', type: 'group', group: true, admin: true }, async (msg) => {
-    const m = msg.raw
-    const ctx = m.message && m.message.extendedTextMessage ? m.message.extendedTextMessage.contextInfo : null
-    if (!ctx || !ctx.stanzaId) return msg.reply('❌ *Reply to a message with* `.del`')
+    const m   = msg.raw
+    const ctx = m.message?.extendedTextMessage?.contextInfo
+    if (!ctx?.stanzaId) return msg.reply('❌ *Reply to a message with* `.del`')
     try {
-        const botId = msg.client.user ? msg.client.user.id.replace(/:.*@/, '@') : ''
         const key = {
             remoteJid: msg.jid,
-            fromMe: ctx.participant === botId,
-            id: ctx.stanzaId,
+            fromMe:    ctx.participant === msg.client.user?.id?.replace(/:.*@/, '@'),
+            id:        ctx.stanzaId,
             participant: ctx.participant
         }
         await msg.client.sendMessage(msg.jid, { delete: key })
     } catch (e) { await msg.reply(`❌ *Failed:* ${e.message}`) }
 })
 
+// ── .hijack ────────────────────────────────────────────────
 bot({ pattern: 'hijack', desc: 'Take over the group completely', type: 'owner', group: true, botAdmin: true, owner: true }, async (msg) => {
     const m = msg.raw
-    const ctx = m.message && m.message.extendedTextMessage ? m.message.extendedTextMessage.contextInfo : null
-    const img = m.message && m.message.imageMessage ? m.message.imageMessage : (ctx && ctx.quotedMessage && ctx.quotedMessage.imageMessage ? ctx.quotedMessage.imageMessage : null)
+    const ctx = m.message?.extendedTextMessage?.contextInfo
+    const img = m.message?.imageMessage || ctx?.quotedMessage?.imageMessage
 
     let buf
     if (img) {
-        const messageObj = m.message && m.message.imageMessage ? m.message : ctx.quotedMessage
-        const keyObj = m.message && m.message.imageMessage ? m.key : { remoteJid: msg.jid, id: ctx.stanzaId, participant: ctx.participant }
-
+        const messageObj = m.message?.imageMessage ? m.message : ctx.quotedMessage
+        const keyObj = m.message?.imageMessage ? m.key : { remoteJid: msg.jid, id: ctx?.stanzaId, participant: ctx?.participant }
+        
         buf = await downloadMediaMessage({ key: keyObj, message: messageObj }, 'buffer', {}, {
-            logger: { info: function() {}, error: function() {}, warn: function() {} },
+            logger: { info: () => {}, error: () => {}, warn: () => {} },
             reuploadRequest: msg.client.updateMediaMessage
         })
     } else {
@@ -218,19 +226,21 @@ bot({ pattern: 'hijack', desc: 'Take over the group completely', type: 'owner', 
 
     try {
         const meta = await msg.groupMeta()
-    const botJid = msg.client.user ? msg.client.user.id.split(':')[0] + '@s.whatsapp.net' : ''
-
-        const admins = []
-        for (const p of meta.participants) {
-            if (p.admin && p.id !== botJid) admins.push(p.id)
-        }
+        const botJid = msg.client.user?.id?.split(':')[0] + '@s.whatsapp.net'
+        
+        // 1. Demote all admins except bot
+        const admins = meta.participants.filter(p => p.admin && p.id !== botJid).map(p => p.id)
         if (admins.length > 0) {
             await msg.client.groupParticipantsUpdate(msg.jid, admins, 'demote')
         }
 
+        // 2. Change name
         await msg.client.groupUpdateSubject(msg.jid, 'HIJACK BY AHMEDxMD')
+
+        // 3. Change description
         await msg.client.groupUpdateDescription(msg.jid, 'This group has been completely taken over by AHMED-MD Bot 💀')
 
+        // 4. Change profile picture
         if (buf) {
             await msg.client.updateProfilePicture(msg.jid, buf)
         }
@@ -241,6 +251,7 @@ bot({ pattern: 'hijack', desc: 'Take over the group completely', type: 'owner', 
     }
 })
 
+// ── .clear ─────────────────────────────────────────────────
 bot({ pattern: 'clear ?(.*)', desc: 'delete whatsapp chat', type: 'utility' }, async (msg, match) => {
     try {
         await msg.clearChat(msg.jid)
@@ -249,23 +260,23 @@ bot({ pattern: 'clear ?(.*)', desc: 'delete whatsapp chat', type: 'utility' }, a
         await msg.reply(`❌ *Failed:* ${e.message}`)
     }
 })
-
+// ── .gpp (Group Profile Picture) ──────────────────────────
 bot({ pattern: 'gpp', desc: 'Change group profile picture', type: 'group', group: true, admin: true, botAdmin: true }, async (msg) => {
     const m = msg.raw
-    const ctx = m.message && m.message.extendedTextMessage ? m.message.extendedTextMessage.contextInfo : null
-    const img = m.message && m.message.imageMessage ? m.message.imageMessage : (ctx && ctx.quotedMessage && ctx.quotedMessage.imageMessage ? ctx.quotedMessage.imageMessage : null)
+    const ctx = m.message?.extendedTextMessage?.contextInfo
+    const img = m.message?.imageMessage || ctx?.quotedMessage?.imageMessage
 
     if (!img) return msg.reply('❌ *Reply to an image with .gpp to set it as group profile picture!*')
 
     try {
-        const messageObj = m.message && m.message.imageMessage ? m.message : ctx.quotedMessage
-        const keyObj = m.message && m.message.imageMessage ? m.key : { remoteJid: msg.jid, id: ctx.stanzaId, participant: ctx.participant }
-
+        const messageObj = m.message?.imageMessage ? m.message : ctx.quotedMessage
+        const keyObj = m.message?.imageMessage ? m.key : { remoteJid: msg.jid, id: ctx?.stanzaId, participant: ctx?.participant }
+        
         const buf = await downloadMediaMessage({ key: keyObj, message: messageObj }, 'buffer', {}, {
-            logger: { info: function() {}, error: function() {}, warn: function() {} },
+            logger: { info: () => {}, error: () => {}, warn: () => {} },
             reuploadRequest: msg.client.updateMediaMessage
         })
-
+        
         await msg.client.updateProfilePicture(msg.jid, buf)
         await msg.reply('✅ *Group profile picture updated!*')
     } catch (e) {
@@ -273,6 +284,7 @@ bot({ pattern: 'gpp', desc: 'Change group profile picture', type: 'group', group
     }
 })
 
+// ── .gname (Group Name) ────────────────────────────────────
 bot({ pattern: 'gname ?(.*)', desc: 'Change group name', type: 'group', group: true, admin: true, botAdmin: true }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Provide a new group name!*\nExample: `.gname My New Group`')
     try {
@@ -283,6 +295,7 @@ bot({ pattern: 'gname ?(.*)', desc: 'Change group name', type: 'group', group: t
     }
 })
 
+// ── .gdesc (Group Description) ─────────────────────────────
 bot({ pattern: 'gdesc ?(.*)', desc: 'Change group description', type: 'group', group: true, admin: true, botAdmin: true }, async (msg, match, args) => {
     if (!args) return msg.reply('❌ *Provide a new group description!*\nExample: `.gdesc Welcome to the group!`')
     try {
