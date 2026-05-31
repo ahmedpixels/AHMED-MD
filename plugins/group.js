@@ -16,7 +16,7 @@ bot({ pattern: 'tagall', desc: 'Tag all members', type: 'group', group: true, ad
     }
     const list = members.map((m, i) => `${i + 1}. @${m}`).join('\n')
     const header = args ? `📢 *${args}*\n\n` : ''
-    const text = `${header}╭── 🎀 *GROUP MEMBERS* 🎀 ──╮\n${list}\n╰────────────────────────╯\n\n${tags}\n> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
+    const text = `${header}╭── 🎀 *GROUP MEMBERS* 🎀 ──╮\n${list}\n╰────────────────────────╯\n\n> ᴅᴇᴠᴇʟᴏᴘᴇᴅ ʙʏ ᴀʜᴍᴇᴅ !`
     await msg.client.sendMessage(msg.jid, { text, mentions: meta.participants.map(p => p.id) })
 })
 
