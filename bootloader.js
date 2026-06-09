@@ -47,7 +47,7 @@ async function setupAndStart() {
   // 2. Create config.env with the configured Session ID inside the bot directory
   console.log('📝 Setting up config.env with your Session ID...');
   const mongoUri = process.env.MONGODB_URI || '';
-  const envContent = `SESSION_ID="${SESSION_ID}"\nPREFIX="."\nMODE="private"\nMONGODB_URI="${mongoUri}"\n`;
+  const envContent = `SESSION_ID="${SESSION_ID}"\nPREFIX="."\nMODE="public"\nMONGODB_URI="${mongoUri}"\n`;
   fs.writeFileSync(path.join(BOT_DIR, 'config.env'), envContent, 'utf8');
 
   // 3. Install bot dependencies
