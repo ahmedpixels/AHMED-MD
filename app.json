@@ -1,0 +1,49 @@
+{
+  "name": "AHMED-MD",
+  "description": "A premium, high-speed multi-device WhatsApp bot built for advanced moderation, rich media processing, and seamless performance.",
+  "repository": "https://github.com/ahmedpixels/AHMED-MD",
+  "logo": "https://i.imgur.com/xl3SNpp.jpeg",
+  "keywords": ["whatsapp", "bot", "baileys", "multi-device", "moderation", "utility"],
+  "env": {
+    "SESSION_ID": {
+      "description": "Your WhatsApp pairing session ID. Get it from ahmedxmd.com",
+      "required": true
+    },
+    "OWNER_NUMBER": {
+      "description": "The phone number of the bot owner (with country code, no + or spaces).",
+      "required": true,
+      "value": "923216479192"
+    },
+    "PREFIX": {
+      "description": "Command prefix character.",
+      "required": false,
+      "value": "."
+    },
+    "MODE": {
+      "description": "Work mode of the bot (public or private).",
+      "required": false,
+      "value": "public"
+    },
+    "MONGODB_URI": {
+      "description": "MongoDB URI connection string for settings and database persistence.",
+      "required": false,
+      "value": "mongodb+srv://ahmahmrsa_db_user:MDCaoNP1rHWnsf6A@cluster0.bh4i34u.mongodb.net/?appName=Cluster0"
+    },
+    "STATUS_REACTION_EMOJIS": {
+      "description": "Custom emojis for auto status reaction (comma separated).",
+      "required": false,
+      "value": "😁,😆,😅,😂,🥹,🤣,🥲,☺️,😇,🙂,🙃,😘,😉,😙,🥸,🤓,😜,🙁,😞,☹️,😣,🥳,⚖️"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "eco"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ]
+}
